@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ClassGuard設定</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 400px;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #f5f5f7;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #e0e0e0;
+      }
+
+      .header h1 {
+        font-size: 24px;
+        color: #1d1d1f;
+        margin-bottom: 5px;
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+        font-size: 14px;
+      }
+
+      #connectionStatus {
+        font-weight: 600;
+      }
+
+      #currentSession {
+        margin-top: 5px;
+        font-size: 12px;
+        color: #666;
+        display: none;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1d1d1f;
+        margin-bottom: 8px;
+      }
+
+      .label-with-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 12px;
+        background: #007aff;
+        color: white;
+      }
+
+      .badge.optional {
+        background: #8e8e93;
+      }
+
+      input[type="text"],
+      input[type="url"],
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 14px;
+        border: 1px solid #d1d1d6;
+        border-radius: 8px;
+        background: white;
+        transition: border-color 0.2s;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: #007aff;
+      }
+
+      .help-text {
+        font-size: 12px;
+        color: #8e8e93;
+        margin-top: 5px;
+      }
+
+      .slider-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      input[type="range"] {
+        flex: 1;
+      }
+
+      #volumeValue {
+        font-size: 14px;
+        font-weight: 600;
+        color: #007aff;
+        min-width: 40px;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      #saveBtn {
+        background: #007aff;
+        color: white;
+        margin-bottom: 10px;
+      }
+
+      #saveBtn:hover {
+        background: #0051d5;
+      }
+
+      #saveBtn:disabled {
+        background: #34c759;
+        cursor: not-allowed;
+      }
+
+      #generateQR {
+        background: #34c759;
+        color: white;
+      }
+
+      #generateQR:hover {
+        background: #248a3d;
+      }
+
+      #qrSection {
+        display: none;
+        margin-top: 20px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        text-align: center;
+      }
+
+      #qrSection h3 {
+        margin-bottom: 15px;
+        font-size: 16px;
+        color: #1d1d1f;
+      }
+
+      #qrcode {
+        display: inline-block;
+        padding: 15px;
+        background: white;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+      }
+
+      .info-box {
+        margin-top: 15px;
+        padding: 12px;
+        background: #f0f0f5;
+        border-radius: 8px;
+        font-size: 12px;
+        color: #666;
+      }
+
+      .warning-box {
+        padding: 12px;
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        margin-bottom: 15px;
+      }
+
+      .warning-box p {
+        font-size: 13px;
+        color: #856404;
+        margin: 0;
+      }
+    </style>
+    <script src="qrcode.min.js"></script>
+  </head>
+  <body>
+    <div class="header">
+      <h1>👁️ ClassGuard</h1>
+      <div class="status">
+        <span id="connectionStatus">確認中...</span>
+      </div>
+      <div id="currentSession"></div>
+    </div>
+
+    <!-- セッションID未設定の警告 -->
+    <div class="warning-box" id="sessionWarning" style="display: none">
+      <p>
+        ⚠️
+        セッションIDが未設定です。QRコードをスキャンするか、下記に入力してください。
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label for="serverUrl">サーバーURL</label>
+      <input
+        type="url"
+        id="serverUrl"
+        placeholder="https://your-server.ngrok-free.dev"
+      />
+      <div class="help-text">ngrokまたはサーバーのURL</div>
+    </div>
+
+    <div class="form-group">
+      <div class="label-with-badge">
+        <label for="sessionId">セッションID</label>
+        <span class="badge">重要</span>
+      </div>
+      <input
+        type="text"
+        id="sessionId"
+        placeholder="cls_1761111513753_ldbr615bq"
+      />
+      <div class="help-text">
+        💡 QRコードをスキャンすると自動入力されます<br />
+        または先生から教えてもらったIDを入力
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="alertMode">アラートモード</label>
+      <select id="alertMode">
+        <option value="sound">🔊 音声アラート</option>
+        <option value="wallpaper">🖼️ 壁紙変更</option>
+        <option value="smartphone">📱 スマホ撮影</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="volume">音量</label>
+      <div class="slider-container">
+        <input type="range" id="volume" min="0" max="100" value="70" />
+        <span id="volumeValue">70%</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>匿名ID</label>
+      <div class="info-box">
+        <strong>ID:</strong> <span id="anonymousId">読み込み中...</span>
+      </div>
+    </div>
+
+    <button id="saveBtn">💾 設定を保存</button>
+    <button id="generateQR">📱 QRコード生成（共有用）</button>
+
+    <div id="qrSection">
+      <h3>QRコード</h3>
+      <div id="qrcode"></div>
+      <div class="info-box">
+        このQRコードを他の学生と共有すると、同じセッションに参加できます
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

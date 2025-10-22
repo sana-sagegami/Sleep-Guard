@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ClassGuard - 教師用ダッシュボード</title>
+    <!-- Socket.io -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <!-- QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #f5f5f7;
+        padding: 40px 20px;
+      }
+
+      #dashboard {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        font-size: 32px;
+        color: #1d1d1f;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      button {
+        width: 100%;
+        padding: 16px;
+        font-size: 16px;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        background: #007aff;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 30px;
+      }
+
+      button:hover {
+        background: #0051d5;
+        transform: translateY(-2px);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      button:disabled {
+        background: #8e8e93;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      button:disabled:hover {
+        background: #8e8e93;
+        transform: none;
+      }
+
+      #qrCode {
+        text-align: center;
+        padding: 30px;
+        background: #f9f9f9;
+        border-radius: 12px;
+        margin-bottom: 30px;
+      }
+
+      #qrCode:empty {
+        display: none;
+      }
+
+      #studentList {
+        padding: 20px;
+        background: #f9f9f9;
+        border-radius: 12px;
+      }
+
+      .connection-status {
+        text-align: center;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .connection-status.connected {
+        background: rgba(52, 199, 89, 0.1);
+        color: #34c759;
+      }
+
+      .connection-status.disconnected {
+        background: rgba(255, 59, 48, 0.1);
+        color: #ff3b30;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="dashboard">
+      <h1>👁️ ClassGuard 教師用ダッシュボード</h1>
+
+      <!-- 接続状態表示 -->
+      <div id="connectionStatusDisplay" class="connection-status disconnected">
+        ⚪ 接続確認中...
+      </div>
+
+      <button id="startClassBtn">📚 授業開始</button>
+      <div id="qrCode"></div>
+      <div id="studentList"></div>
+    </div>
+
+    <script>
+        console.log("🔧 教師用ダッシュボード初期化開始");
+
+        // Socket.io接続（修正版）
+        let socket = null;
+        let currentSessionId = null;
+        let connectionAttempts = 0;
+        const maxConnectionAttempts = 5;
+
+        // 接続を試行
+        function connectToServer() {
+            connectionAttempts++;
+            console.log(`🔌 Socket.io接続試行 (${connectionAttempts}/${maxConnectionAttempts})`);
+
+            try {
+                socket = io('/teacher', {
+                    transports: ['polling'],
+                    upgrade: false,
+                    forceNew: true,
+                    reconnection: true,
+                    reconnectionDelay: 2000,
+                    reconnectionAttempts: 3,
+                    timeout: 10000
+                });
+
+                // 接続成功
+                socket.on('connect', () => {
+                    console.log("✅ Socket.io接続成功");
+                    console.log("📡 Socket ID:", socket.id);
+                    console.log("📡 Transport:", socket.io.engine.transport.name);
+                    
+                    connectionAttempts = 0; // リセット
+                    updateConnectionStatus(true);
+                });
+
+                // 接続エラー
+                socket.on('connect_error', (error) => {
+                    console.error("❌ Socket.io接続エラー:", error.message);
+                    console.error("📊 エラー詳細:", error);
+                    
+                    updateConnectionStatus(false);
+                    
+                    // 最大試行回数に達したら停止
+                    if (connectionAttempts >= maxConnectionAttempts) {
+                        console.error("❌ 最大接続試行回数に達しました");
+                        showFallbackMode();
+                        return;
+                    }
+                    
+                    // 再試行
+                    setTimeout(() => {
+                        console.log("🔄 再接続を試行します...");
+                        connectToServer();
+                    }, 3000);
+                });
+
+                // 切断
+                socket.on('disconnect', (reason) => {
+                    console.log("❌ Socket.io切断:", reason);
+                    updateConnectionStatus(false);
+                });
+
+                // セッション作成成功
+                socket.on('session-created', (sessionId) => {
+                    console.log("📚 セッション作成成功:", sessionId);
+                    currentSessionId = sessionId;
+                    
+                    // 表示を更新
+                    showSessionInfo(sessionId);
+                    generateQRCode(sessionId);
+                });
+
+                // 統計更新
+                socket.on('update', (stats) => {
+                    console.log("📊 統計更新受信:", stats);
+                    updateStudentList(stats);
+                });
+
+                // エラーハンドリング
+                socket.on('error', (error) => {
+                    console.error("❌ Socket.ioエラー:", error);
+                });
+
+            } catch (err) {
+                console.error("❌ Socket.io初期化エラー:", err);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // フォールバックモード（Socket.io接続失敗時）
+        function showFallbackMode() {
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = `
+                <h1>👁️ ClassGuard 教師用ダッシュボード</h1>
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h3 style="color: #856404; margin-bottom: 10px;">⚠️ リアルタイム通信が利用できません</h3>
+                    <p style="color: #856404; margin: 0;">
+                        Socket.ioサーバーに接続できませんでした。<br>
+                        手動でセッションを開始します。
+                    </p>
+                </div>
+                <button onclick="startManualSession()" style="background: #28a745;">
+                    📚 手動セッション開始
+                </button>
+                <div id="manualSession" style="display: none; margin-top: 20px;"></div>
+            `;
+        }
+
+        // 手動セッション開始
+        function startManualSession() {
+            const sessionId = 'cls_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
+            document.getElementById('manualSession').innerHTML = `
+                <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px;">
+                    <h3 style="color: #155724; margin-bottom: 10px;">✅ 手動セッション開始</h3>
+                    <p style="color: #155724; font-size: 18px; font-weight: bold;">
+                        セッションID: ${sessionId}
+                    </p>
+                    <p style="color: #155724; margin-top: 10px;">
+                        このIDをChrome拡張機能の設定に入力してください。
+                    </p>
+                </div>
+            `;
+            document.getElementById('manualSession').style.display = 'block';
+            
+            console.log("📚 手動セッション開始:", sessionId);
+        }
+
+        // セッション情報を表示
+        function showSessionInfo(sessionId) {
+            const qrContainer = document.getElementById('qrCode');
+            qrContainer.innerHTML = `
+                <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                    <h3 style="color: #155724; margin-bottom: 10px;">✅ 授業セッション開始</h3>
+                    <p style="color: #155724; font-size: 18px; font-weight: bold;">
+                        セッションID: ${sessionId}
+                    </p>
+                    <div id="qr-code-area" style="margin-top: 15px;"></div>
+                </div>
+            `;
+        }
+
+        // 授業開始
+        function startClass() {
+            if (!socket || !socket.connected) {
+                console.warn("⚠️ Socket.io未接続 - 手動モードで開始");
+                startManualSession();
+                return;
+            }
+
+            console.log("📚 授業開始要求送信");
+            
+            socket.emit('start', (response) => {
+                console.log("📚 授業開始レスポンス:", response);
+                
+                if (response && response.sessionId) {
+                    currentSessionId = response.sessionId;
+                    console.log("✅ セッション開始成功:", currentSessionId);
+                } else {
+                    console.error("❌ セッション開始失敗");
+                    startManualSession();
+                }
+            });
+        }
+
+        // QRコード生成
+        function generateQRCode(sessionId) {
+            const qrArea = document.getElementById('qr-code-area');
+            if (!qrArea) return;
+
+            try {
+                if (typeof QRCode !== 'undefined') {
+                    new QRCode(qrArea, {
+                        text: sessionId,
+                        width: 200,
+                        height: 200,
+                    });
+                    console.log("✅ QRコード生成成功");
+                } else {
+                    qrArea.innerHTML = `
+                        <p style="color: #856404;">QRコード生成に失敗しました</p>
+                        <p style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                            ${sessionId}
+                        </p>
+                    `;
+                    console.warn("⚠️ QRCodeライブラリが利用できません");
+                }
+            } catch (err) {
+                console.error("❌ QRコード生成エラー:", err);
+            }
+        }
+
+        // 接続状態を更新
+        function updateConnectionStatus(connected) {
+            const statusDisplay = document.getElementById('connectionStatusDisplay');
+            const startBtn = document.getElementById('startClassBtn');
+
+            if (connected) {
+                statusDisplay.textContent = "✅ サーバーに接続中";
+                statusDisplay.className = "connection-status connected";
+                if (startBtn) startBtn.disabled = false;
+            } else {
+                statusDisplay.textContent = "❌ サーバー未接続";
+                statusDisplay.className = "connection-status disconnected";
+                if (startBtn) startBtn.disabled = true;
+            }
+        }
+
+        // 学生リストを更新
+        function updateStudentList(stats) {
+            const listContainer = document.getElementById('studentList');
+            if (!listContainer) return;
+
+            listContainer.innerHTML = `
+                <h3>📊 現在の状況</h3>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
+                    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #1976d2;">${stats.totalStudents || 0}</div>
+                        <div style="color: #1976d2;">参加者数</div>
+                    </div>
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #388e3c;">${stats.awakeCount || 0}</div>
+                        <div style="color: #388e3c;">起きている</div>
+                    </div>
+                    <div style="background: #ffebee; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 24px; font-weight: bold; color: #d32f2f;">${stats.sleepingCount || 0}</div>
+                        <div style="color: #d32f2f;">居眠り中</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 授業開始ボタンのイベント
+        document.getElementById('startClassBtn').addEventListener('click', startClass);
+
+        // 初期化
+        console.log("🚀 ダッシュボード初期化完了");
+        updateConnectionStatus(false);
+
+        // Socket.io接続開始
+        setTimeout(() => {
+            connectToServer();
+        }, 1000);
+    </script>
+</body>
+</html>

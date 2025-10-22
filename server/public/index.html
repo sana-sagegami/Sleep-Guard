@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2196F3">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ClassGuard - スマホ</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            color: #333; 
+        }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; color: white; margin-bottom: 30px; padding: 20px 0; }
+        .header h1 { font-size: 2rem; margin-bottom: 10px; }
+        .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .status-indicator { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; background: #ccc; }
+        .status-dot.connected { background: #4CAF50; animation: pulse 2s infinite; }
+        .status-dot.disconnected { background: #f44336; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .status-text { font-weight: 600; font-size: 1.1rem; }
+        .status-details { font-size: 0.9rem; color: #666; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }
+        .status-details div { margin: 5px 0; }
+        .camera-container { display: none; }
+        .camera-container.active { display: block; }
+        #camera-preview { width: 100%; border-radius: 12px; background: #000; display: block; }
+        #qr-reader { width: 100%; border-radius: 12px; overflow: hidden; }
+        .btn { display: block; width: 100%; padding: 15px; font-size: 1.1rem; font-weight: 600; border: none; border-radius: 12px; cursor: pointer; margin-bottom: 15px; color: white; }
+        .btn-primary { background: #2196F3; }
+        .btn-secondary { background: #4CAF50; }
+        .btn-danger { background: #f44336; }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 15px; }
+        .gallery-item { position: relative; padding-bottom: 100%; border-radius: 8px; overflow: hidden; background: #f0f0f0; }
+        .gallery-item img { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        .gallery-empty { text-align: center; padding: 40px; color: #999; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: #323232; color: white; padding: 15px 25px; border-radius: 8px; z-index: 1000; transition: transform 0.3s; }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .screen { display: none; }
+        .screen.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 ClassGuard</h1>
+            <p>授業スライド自動撮影アプリ</p>
+        </div>
+
+        <div id="main-screen" class="screen active">
+            <div class="card">
+                <div class="status-indicator">
+                    <div id="status-dot" class="status-dot disconnected"></div>
+                    <span id="status-text" class="status-text">未接続</span>
+                </div>
+                <div id="status-details" class="status-details">
+                    <div><strong>匿名ID:</strong> <span id="anonymous-id">-</span></div>
+                    <div><strong>サーバー:</strong> <span id="server-url">-</span></div>
+                    <div><strong>最終撮影:</strong> <span id="last-capture">未撮影</span></div>
+                </div>
+            </div>
+
+            <div id="camera-container" class="card camera-container">
+                <h3>📷 カメラ準備完了</h3>
+                <video id="camera-preview" autoplay playsinline muted></video>
+                <button id="manual-capture-btn" class="btn btn-secondary" style="margin-top: 15px;">📸 手動撮影</button>
+            </div>
+
+            <button id="scan-qr-btn" class="btn btn-primary">🔍 QRコードでペアリング</button>
+            <button id="view-gallery-btn" class="btn btn-secondary">🖼️ ギャラリーを見る</button>
+            <button id="test-connection-btn" class="btn btn-secondary" style="display: none;">🔄 接続テスト</button>
+        </div>
+
+        <div id="qr-scan-screen" class="screen">
+            <div class="card">
+                <h3>QRコードをスキャン</h3>
+                <div id="qr-reader" style="margin: 15px 0;"></div>
+                <button id="close-qr-btn" class="btn btn-danger">✕ キャンセル</button>
+            </div>
+        </div>
+
+        <div id="gallery-screen" class="screen">
+            <div class="card">
+                <h3>撮影履歴</h3>
+                <button id="delete-all-btn" class="btn btn-danger" style="margin: 10px 0;">🗑️ すべて削除</button>
+                <div id="gallery-grid" class="gallery-grid"></div>
+                <div id="gallery-empty" class="gallery-empty">撮影した写真がありません</div>
+                <button id="close-gallery-btn" class="btn btn-primary" style="margin-top: 15px;">← 戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

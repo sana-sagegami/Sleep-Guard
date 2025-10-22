@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClassGuard Alert</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: white;
+            animation: pulse 2s infinite;
+            overflow: hidden;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .alert-container {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        h1 {
+            font-size: 5rem;
+            margin: 0 0 30px 0;
+            text-shadow: 0 0 30px rgba(255,255,255,0.5);
+            animation: shake 0.5s infinite;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        p {
+            font-size: 2rem;
+            margin: 0;
+            opacity: 0.9;
+        }
+        
+        .time {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-size: 3rem;
+            font-weight: 600;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .close-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
+</head>
+<body>
+    <button class="close-btn" onclick="window.close()">✕ 閉じる</button>
+    
+    <div class="time" id="time"></div>
+    
+    <div class="alert-container">
+        <h1>⚠️ 起きてください！</h1>
+        <p>授業に集中しましょう</p>
+    </div>
+    
+    <script>
+        // 現在時刻を表示
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ja-JP', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('time').textContent = timeStr;
+        }
+        
+        updateTime();
+        setInterval(updateTime, 1000);
+        
+        // 10秒後に自動的に閉じる
+        setTimeout(() => {
+            window.close();
+        }, 10000);
+        
+        // ESCキーで閉じる
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                window.close();
+            }
+        });
+    </script>
+</body>
+</html>
