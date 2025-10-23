@@ -301,16 +301,39 @@
       // セッション情報を表示
       function showSessionInfo(sessionId) {
         const qrContainer = document.getElementById("qrCode");
+        const joinUrl = `${window.location.origin}?session=${sessionId}`;
+
         qrContainer.innerHTML = `
                 <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                     <h3 style="color: #155724; margin-bottom: 10px;">✅ 授業セッション開始</h3>
                     <p style="color: #155724; font-size: 18px; font-weight: bold;">
-                        セッションID: ${sessionId}
+                        セッションID: <span id="session-id-text">${sessionId}</span>
+                        <button onclick="copySessionId('${sessionId}')" style="margin-left: 10px; padding: 5px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                            📋 コピー
+                        </button>
+                    </p>
+                    <p style="color: #666; font-size: 12px; margin-top: 10px;">
+                        💡 セッションIDをコピーするだけで自動参加できます
                     </p>
                     <div id="qr-code-area" style="margin-top: 15px;"></div>
                 </div>
             `;
       }
+
+      // セッションIDをコピー
+      function copySessionId(sessionId) {
+        navigator.clipboard
+          .writeText(sessionId)
+          .then(() => {
+            alert(
+              "✅ セッションIDをコピーしました！\n学生に共有してください。"
+            );
+          })
+          .catch((err) => {
+            console.error("コピー失敗:", err);
+          });
+      }
+
 
       // 授業開始
       function startClass() {

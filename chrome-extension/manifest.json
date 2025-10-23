@@ -3,7 +3,13 @@
   "name": "ClassGuard",
   "version": "1.0.0",
   "description": "オンライン授業での居眠り検知システム",
-  "permissions": ["storage", "activeTab", "notifications", "tabs"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "notifications",
+    "tabs",
+    "clipboardRead"
+  ],
   "host_permissions": ["https://*/*", "http://*/*"],
   "background": {
     "service_worker": "background.js",

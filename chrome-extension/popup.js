@@ -21,8 +21,93 @@ async function loadSettings() {
   document.getElementById("anonymousId").textContent =
     result.anonymousId || "未設定";
 
+  // URLパラメータからセッションIDを自動取得
+  await checkUrlParameters();
+
+  // クリップボードからセッションIDを自動検出
+  await checkClipboard();
+
   // 接続状態を確認
   checkConnectionStatus();
+}
+
+// URLパラメータからセッションIDを取得
+async function checkUrlParameters() {
+  try {
+    // 現在のタブを取得
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    if (tab && tab.url) {
+      const url = new URL(tab.url);
+      const sessionId = url.searchParams.get("session");
+
+      if (sessionId && sessionId.startsWith("cls_")) {
+        console.log("📋 URLからセッションID検出:", sessionId);
+        document.getElementById("sessionId").value = sessionId;
+
+        // 自動保存するか確認
+        showAutoFillNotification(
+          "URLからセッションIDを検出しました",
+          sessionId
+        );
+      }
+    }
+  } catch (err) {
+    console.log("URLパラメータチェック:", err.message);
+  }
+}
+
+// クリップボードからセッションIDを検出
+async function checkClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+
+    // セッションIDのパターン: cls_数字_英数字
+    const sessionIdPattern = /cls_\d+_[a-z0-9]+/i;
+    const match = text.match(sessionIdPattern);
+
+    if (match) {
+      const sessionId = match[0];
+      const currentSessionId = document.getElementById("sessionId").value;
+
+      // 既に入力されていない場合のみ提案
+      if (!currentSessionId || currentSessionId !== sessionId) {
+        console.log("📋 クリップボードからセッションID検出:", sessionId);
+        showAutoFillNotification(
+          "クリップボードからセッションIDを検出しました",
+          sessionId
+        );
+      }
+    }
+  } catch (err) {
+    console.log("クリップボードチェック:", err.message);
+  }
+}
+
+// 自動入力通知を表示
+function showAutoFillNotification(message, sessionId) {
+  const notification = document.getElementById("autoFillNotification");
+  const messageEl = document.getElementById("autoFillMessage");
+  const sessionIdEl = document.getElementById("autoFillSessionId");
+
+  messageEl.textContent = message;
+  sessionIdEl.textContent = sessionId;
+  notification.style.display = "block";
+
+  // 適用ボタンのイベント
+  document.getElementById("applySessionId").onclick = () => {
+    document.getElementById("sessionId").value = sessionId;
+    notification.style.display = "none";
+    showStatus("✅ セッションIDを適用しました", "success");
+  };
+
+  // キャンセルボタンのイベント
+  document.getElementById("cancelSessionId").onclick = () => {
+    notification.style.display = "none";
+  };
 }
 
 // 接続状態を確認
@@ -99,6 +184,20 @@ async function saveSettings() {
     saveBtn.disabled = false;
     checkConnectionStatus();
   }, 1500);
+}
+
+// ステータス表示
+function showStatus(message, type = "info") {
+  const statusEl = document.getElementById("statusMessage");
+  if (!statusEl) return;
+
+  statusEl.textContent = message;
+  statusEl.className = "status-message " + type;
+  statusEl.style.display = "block";
+
+  setTimeout(() => {
+    statusEl.style.display = "none";
+  }, 3000);
 }
 
 // QRコード生成
