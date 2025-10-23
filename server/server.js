@@ -193,15 +193,14 @@ app.post("/api/status", (req, res) => {
   // 統計を更新
   updateStats(sessionId);
 
-  // 教員側に更新を通知
-  io.of("/teacher")
-    .to(sessionId)
-    .emit("student-update", {
-      studentId,
-      status,
-      timestamp: timestamp || Date.now(),
-      stats: sessions[sessionId].stats,
-    });
+  // 教員側に更新を通知（全体ブロードキャスト）
+  io.of("/teacher").emit("update", {
+    sessionId: sessionId,
+    studentId: studentId,
+    status: status,
+    students: sessions[sessionId].students,
+    stats: sessions[sessionId].stats,
+  });
 
   console.log(
     `📊 統計更新: 合計=${sessions[sessionId].stats.totalStudents}, 起きている=${sessions[sessionId].stats.awakeCount}, 寝ている=${sessions[sessionId].stats.sleepingCount}`
@@ -282,6 +281,19 @@ io.of("/teacher").on("connection", (socket) => {
 
     // セッション作成を通知
     socket.emit("session-created", sessionId);
+
+    // 定期的に統計を送信（5秒ごと）
+    const statsInterval = setInterval(() => {
+      if (sessions[sessionId]) {
+        io.of("/teacher").emit("update", {
+          sessionId: sessionId,
+          students: sessions[sessionId].students,
+          stats: sessions[sessionId].stats,
+        });
+      } else {
+        clearInterval(statsInterval);
+      }
+    }, 5000);
   });
 
   // セッション参加

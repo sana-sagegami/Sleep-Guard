@@ -173,6 +173,9 @@ async function autoSaveSettings() {
   }
 
   try {
+    // 既存の設定を取得（anonymousIdを保持）
+    const existingSettings = await chrome.storage.sync.get(["anonymousId"]);
+    
     // 保存
     await chrome.storage.sync.set({
       serverUrl,
@@ -181,7 +184,7 @@ async function autoSaveSettings() {
       volume: parseInt(volume),
     });
 
-    // Background Scriptに通知
+    // Background Scriptに通知（anonymousIdも含める）
     await chrome.runtime.sendMessage({
       type: "SETTINGS_UPDATED",
       settings: {
@@ -189,11 +192,21 @@ async function autoSaveSettings() {
         sessionId,
         alertMode,
         volume: parseInt(volume),
+        anonymousId: existingSettings.anonymousId,
       },
     });
 
     console.log("✅ 設定を自動保存しました");
     showStatus("✅ 保存完了", "success");
+
+    // セッションIDが設定されている場合、自動的に検知を開始
+    if (sessionId && sessionId.trim() !== "") {
+      console.log("🚀 セッションID設定検出 - 検知自動開始");
+      await chrome.runtime.sendMessage({
+        type: "START_DETECTION",
+      });
+      showStatus("✅ 保存完了 - 監視開始", "success");
+    }
 
     // 接続状態を更新
     setTimeout(() => {

@@ -39,59 +39,79 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("📨 メッセージ受信:", message.type);
 
-  switch (message.type) {
-    case "SETTINGS_UPDATED":
-      settings = message.settings;
-      currentSessionId = settings.sessionId || null;
-      console.log("⚙️ 設定更新完了:", settings);
-      sendResponse({ success: true });
-      break;
+  // 非同期処理用のハンドラ
+  (async () => {
+    try {
+      switch (message.type) {
+        case "SETTINGS_UPDATED":
+          // 設定を完全に更新（anonymousIdも含む）
+          const newSettings = message.settings;
 
-    case "CHECK_CONNECTION":
-      console.log("🔍 接続確認開始...");
-      testServerConnection()
-        .then((result) => {
+          // anonymousIdがない場合はストレージから取得
+          if (!newSettings.anonymousId) {
+            const result = await chrome.storage.sync.get(["anonymousId"]);
+            newSettings.anonymousId = result.anonymousId;
+          }
+
+          settings = newSettings;
+          currentSessionId = settings.sessionId || null;
+
+          console.log("⚙️ 設定更新完了:", settings);
+          console.log("   serverUrl:", settings.serverUrl);
+          console.log("   sessionId:", currentSessionId);
+          console.log("   anonymousId:", settings.anonymousId);
+
+          // セッションIDが設定されていて、まだ検知が開始されていない場合は自動開始
+          if (currentSessionId && !detectionActive) {
+            console.log("🚀 セッションID検出 - 自動検知開始");
+            setTimeout(() => {
+              startDetection();
+            }, 1000);
+          }
+
+          sendResponse({ success: true });
+          break;
+
+        case "CHECK_CONNECTION":
+          console.log("🔍 接続確認開始...");
+          const result = await testServerConnection();
           console.log("✅ 接続確認結果:", result);
           sendResponse(result);
-        })
-        .catch((err) => {
-          console.error("❌ 接続確認エラー:", err);
-          sendResponse({
-            connected: false,
-            sessionId: currentSessionId,
-            error: err.message || "接続エラー",
-          });
-        });
-      return true;
+          break;
 
-    case "START_DETECTION":
-      console.log("🚀 検知開始指示");
-      startDetection();
-      sendResponse({ success: true });
-      break;
+        case "START_DETECTION":
+          console.log("🚀 検知開始指示");
+          startDetection();
+          sendResponse({ success: true });
+          break;
 
-    case "STOP_DETECTION":
-      console.log("⏹️ 検知停止指示");
-      stopDetection();
-      sendResponse({ success: true });
-      break;
+        case "STOP_DETECTION":
+          console.log("⏹️ 検知停止指示");
+          stopDetection();
+          sendResponse({ success: true });
+          break;
 
-    case "FACE_DETECTED":
-      handleFaceDetection(message.detected);
-      sendResponse({ success: true });
-      break;
+        case "FACE_DETECTED":
+          handleFaceDetection(message.detected);
+          sendResponse({ success: true });
+          break;
 
-    case "SET_SESSION_ID":
-      currentSessionId = message.sessionId;
-      chrome.storage.sync.set({ sessionId: message.sessionId });
-      console.log("📋 セッションID設定:", currentSessionId);
-      sendResponse({ success: true });
-      break;
+        case "SET_SESSION_ID":
+          currentSessionId = message.sessionId;
+          await chrome.storage.sync.set({ sessionId: message.sessionId });
+          console.log("📋 セッションID設定:", currentSessionId);
+          sendResponse({ success: true });
+          break;
 
-    default:
-      console.warn("⚠️ 未知のメッセージ:", message.type);
-      sendResponse({ success: false, error: "未知のメッセージタイプ" });
-  }
+        default:
+          console.warn("⚠️ 未知のメッセージ:", message.type);
+          sendResponse({ success: false, error: "未知のメッセージタイプ" });
+      }
+    } catch (err) {
+      console.error("❌ メッセージ処理エラー:", err);
+      sendResponse({ success: false, error: err.message });
+    }
+  })();
 
   return true;
 });
@@ -150,7 +170,7 @@ async function testServerConnection() {
       method: "GET",
       headers: {
         "ngrok-skip-browser-warning": "true",
-        "Accept": "application/json, text/html, */*",
+        Accept: "application/json, text/html, */*",
       },
       // タイムアウトを追加
       signal: AbortSignal.timeout(10000), // 10秒
@@ -169,15 +189,15 @@ async function testServerConnection() {
     return result;
   } catch (err) {
     console.error("❌ 接続テストエラー:", err.message);
-    
+
     // より詳細なエラー情報
     let errorMessage = err.message;
-    if (err.name === 'TimeoutError') {
+    if (err.name === "TimeoutError") {
       errorMessage = "接続タイムアウト（サーバーが応答しません）";
-    } else if (err.name === 'TypeError') {
+    } else if (err.name === "TypeError") {
       errorMessage = "ネットワークエラー（サーバーURLを確認してください）";
     }
-    
+
     return {
       connected: false,
       sessionId: currentSessionId,
@@ -201,7 +221,16 @@ function startDetection() {
     return;
   }
 
+  if (!settings.serverUrl) {
+    console.warn("⚠️ サーバーURL未設定");
+    return;
+  }
+
   console.log("👁️ 居眠り検知開始");
+  console.log("   サーバー:", settings.serverUrl);
+  console.log("   セッションID:", currentSessionId);
+  console.log("   学生ID:", settings.anonymousId);
+
   detectionActive = true;
   faceNotDetectedTime = 0;
   lastSentStatus = "";
@@ -217,17 +246,15 @@ function startDetection() {
     }
   });
 
-  // 30秒ごとに状態チェック
+  // 10秒ごとに定期送信
   detectionInterval = setInterval(() => {
-    console.log("🔍 定期状態チェック");
-    checkStatus();
-  }, 30000);
+    console.log("🔍 定期ステータス送信");
+    sendStatusToServer(currentStatus);
+  }, 10000);
 
-  // 初回ステータス送信
-  setTimeout(() => {
-    console.log("📤 初回ステータス送信");
-    sendStatusToServer("awake");
-  }, 3000);
+  // 初回ステータス送信（即座に）
+  console.log("📤 初回ステータス送信");
+  sendStatusToServer("awake");
 }
 
 // 検知停止
@@ -304,11 +331,22 @@ async function sendStatusToServer(status) {
 
   if (!settings.serverUrl || !currentSessionId) {
     console.warn("⚠️ 送信に必要な情報が不足");
+    console.warn("   serverUrl:", settings.serverUrl);
+    console.warn("   sessionId:", currentSessionId);
     return;
   }
 
+  // anonymousIdが未設定の場合は取得
+  if (!settings.anonymousId) {
+    console.warn("⚠️ anonymousId未設定 - 設定を再読み込み");
+    await loadSettings();
+    if (!settings.anonymousId) {
+      console.error("❌ anonymousIdの取得に失敗");
+      return;
+    }
+  }
+
   try {
-    // 簡易的なエンドポイントに送信
     const url = `${settings.serverUrl}/api/status`;
     const data = {
       sessionId: currentSessionId,
@@ -319,6 +357,9 @@ async function sendStatusToServer(status) {
 
     console.log("🌐 送信先:", url);
     console.log("📋 送信データ:", data);
+    console.log("   sessionId:", data.sessionId);
+    console.log("   studentId:", data.studentId);
+    console.log("   status:", data.status);
 
     const response = await fetch(url, {
       method: "POST",
@@ -332,10 +373,12 @@ async function sendStatusToServer(status) {
     console.log("📊 送信レスポンス:", response.status, response.statusText);
 
     if (response.ok) {
+      const result = await response.json();
       lastSentStatus = status;
-      console.log("✅ ステータス送信成功:", status);
+      console.log("✅ ステータス送信成功:", result);
     } else {
-      console.error("❌ ステータス送信失敗:", response.status);
+      const errorText = await response.text();
+      console.error("❌ ステータス送信失敗:", response.status, errorText);
     }
   } catch (err) {
     console.error("❌ ステータス送信エラー:", err.message);
