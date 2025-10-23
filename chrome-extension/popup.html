@@ -314,6 +314,40 @@
         <span id="connectionStatus">確認中...</span>
       </div>
       <div id="currentSession"></div>
+
+      <!-- 検知ステータス表示 -->
+      <div
+        id="detectionStatus"
+        style="
+          display: none;
+          margin-top: 12px;
+          padding: 12px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+          "
+        >
+          <span id="detectionIcon">👀</span>
+          <span id="detectionText">監視中</span>
+        </div>
+        <div
+          id="detectionDetail"
+          style="
+            font-size: 11px;
+            font-weight: 400;
+            margin-top: 4px;
+            opacity: 0.8;
+          "
+        ></div>
+      </div>
     </div>
 
     <!-- 自動入力通知 -->

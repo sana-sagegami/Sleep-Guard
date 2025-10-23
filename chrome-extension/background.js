@@ -103,6 +103,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: true });
           break;
 
+        case "GET_DETECTION_STATUS":
+          sendResponse({
+            active: detectionActive,
+            status: currentStatus,
+            notDetectedTime: faceNotDetectedTime,
+            sessionId: currentSessionId,
+          });
+          break;
+
         default:
           console.warn("⚠️ 未知のメッセージ:", message.type);
           sendResponse({ success: false, error: "未知のメッセージタイプ" });
@@ -395,8 +404,36 @@ async function sendStatusToServer(status) {
       try {
         const errorJson = JSON.parse(errorText);
         console.error("   エラーメッセージ:", errorJson.error);
+
+        // 404エラー（セッション未発見）の場合
+        if (response.status === 404) {
+          console.error("⚠️ セッションが見つかりません！");
+          console.error("   使用したセッションID:", data.sessionId);
+          console.error(
+            "   利用可能なセッション:",
+            errorJson.availableSessions
+          );
+          console.error(
+            "💡 対処法: 教師が授業を開始しているか確認してください"
+          );
+
+          // 検知を一時停止
+          if (detectionActive) {
+            console.log("⏸️ 検知を一時停止します");
+            stopDetection();
+          }
+        }
       } catch (e) {
-        console.error("   レスポンステキスト:", errorText);
+        // HTMLエラーページの場合（ngrokエラーなど）
+        if (
+          errorText.includes("ngrok") &&
+          errorText.includes("connection refused")
+        ) {
+          console.error("❌ サーバーが起動していません！");
+          console.error("💡 対処法: サーバーを起動してください (npm start)");
+        } else {
+          console.error("   レスポンステキスト:", errorText.substring(0, 200));
+        }
       }
     }
   } catch (err) {
