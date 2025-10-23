@@ -357,9 +357,19 @@ async function sendStatusToServer(status) {
 
     console.log("🌐 送信先:", url);
     console.log("📋 送信データ:", data);
-    console.log("   sessionId:", data.sessionId);
-    console.log("   studentId:", data.studentId);
-    console.log("   status:", data.status);
+    console.log("   sessionId:", data.sessionId, "型:", typeof data.sessionId);
+    console.log("   studentId:", data.studentId, "型:", typeof data.studentId);
+    console.log("   status:", data.status, "型:", typeof data.status);
+    console.log("   timestamp:", data.timestamp, "型:", typeof data.timestamp);
+
+    // データ検証
+    if (!data.sessionId || !data.studentId || !data.status) {
+      console.error("❌ 送信データが不完全です！");
+      console.error("   sessionId:", data.sessionId);
+      console.error("   studentId:", data.studentId);
+      console.error("   status:", data.status);
+      return;
+    }
 
     const response = await fetch(url, {
       method: "POST",
@@ -378,10 +388,20 @@ async function sendStatusToServer(status) {
       console.log("✅ ステータス送信成功:", result);
     } else {
       const errorText = await response.text();
-      console.error("❌ ステータス送信失敗:", response.status, errorText);
+      console.error("❌ ステータス送信失敗:", response.status);
+      console.error("   エラー詳細:", errorText);
+
+      // エラー内容をパース
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error("   エラーメッセージ:", errorJson.error);
+      } catch (e) {
+        console.error("   レスポンステキスト:", errorText);
+      }
     }
   } catch (err) {
     console.error("❌ ステータス送信エラー:", err.message);
+    console.error("   スタックトレース:", err.stack);
   }
 }
 

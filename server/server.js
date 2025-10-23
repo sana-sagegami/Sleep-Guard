@@ -156,21 +156,37 @@ app.get("/api/sessions", (req, res) => {
 app.post("/api/status", (req, res) => {
   const { sessionId, studentId, status, timestamp } = req.body;
 
-  console.log("📬 ステータス受信:", { sessionId, studentId, status });
+  console.log("📬 ステータス受信:");
+  console.log("   sessionId:", sessionId, "型:", typeof sessionId);
+  console.log("   studentId:", studentId, "型:", typeof studentId);
+  console.log("   status:", status, "型:", typeof status);
+  console.log("   timestamp:", timestamp);
+  console.log("   リクエストボディ全体:", req.body);
 
   // バリデーション
   if (!sessionId || !studentId || !status) {
+    console.error("❌ バリデーションエラー:");
+    console.error("   sessionId:", sessionId, "存在?", !!sessionId);
+    console.error("   studentId:", studentId, "存在?", !!studentId);
+    console.error("   status:", status, "存在?", !!status);
+
     return res.status(400).json({
       success: false,
       error: "sessionId, studentId, status are required",
+      received: { sessionId, studentId, status, timestamp },
     });
   }
 
   // セッションが存在するか確認
   if (!sessions[sessionId]) {
+    console.error("❌ セッション未発見:", sessionId);
+    console.error("   利用可能なセッション:", Object.keys(sessions));
+
     return res.status(404).json({
       success: false,
       error: "Session not found",
+      sessionId: sessionId,
+      availableSessions: Object.keys(sessions),
     });
   }
 
