@@ -144,14 +144,111 @@ app.get("/socket.io/health", (req, res) => {
 });
 
 /**
- * セッション一覧（デバッグ用）
+ * セッション一覧(デバッグ用)
  */
 app.get("/api/sessions", (req, res) => {
   res.json(sessions);
 });
 
+/**
+ * 生徒のステータス更新 (Chrome拡張機能から)
+ */
+app.post("/api/status", (req, res) => {
+  const { sessionId, studentId, status, timestamp } = req.body;
+
+  console.log("📬 ステータス受信:", { sessionId, studentId, status });
+
+  // バリデーション
+  if (!sessionId || !studentId || !status) {
+    return res.status(400).json({
+      success: false,
+      error: "sessionId, studentId, status are required",
+    });
+  }
+
+  // セッションが存在するか確認
+  if (!sessions[sessionId]) {
+    return res.status(404).json({
+      success: false,
+      error: "Session not found",
+    });
+  }
+
+  // 生徒情報を更新
+  if (!sessions[sessionId].students[studentId]) {
+    sessions[sessionId].students[studentId] = {
+      id: studentId,
+      status: status,
+      lastUpdate: timestamp || Date.now(),
+      connected: true,
+    };
+    console.log("✨ 新しい生徒が接続:", studentId);
+  } else {
+    sessions[sessionId].students[studentId].status = status;
+    sessions[sessionId].students[studentId].lastUpdate =
+      timestamp || Date.now();
+    sessions[sessionId].students[studentId].connected = true;
+  }
+
+  // 統計を更新
+  updateStats(sessionId);
+
+  // 教員側に更新を通知
+  io.of("/teacher")
+    .to(sessionId)
+    .emit("student-update", {
+      studentId,
+      status,
+      timestamp: timestamp || Date.now(),
+      stats: sessions[sessionId].stats,
+    });
+
+  console.log(
+    `📊 統計更新: 合計=${sessions[sessionId].stats.totalStudents}, 起きている=${sessions[sessionId].stats.awakeCount}, 寝ている=${sessions[sessionId].stats.sleepingCount}`
+  );
+
+  res.json({
+    success: true,
+    message: "Status updated",
+    stats: sessions[sessionId].stats,
+  });
+});
+
+/**
+ * キャプチャリクエスト (教員→スマホ)
+ */
+app.post("/api/capture-request", (req, res) => {
+  const { sessionId, studentId } = req.body;
+
+  console.log("📸 キャプチャリクエスト受信:", { sessionId, studentId });
+
+  if (!sessionId || !studentId) {
+    return res.status(400).json({
+      success: false,
+      error: "sessionId and studentId are required",
+    });
+  }
+
+  if (!sessions[sessionId]) {
+    return res.status(404).json({
+      success: false,
+      error: "Session not found",
+    });
+  }
+
+  // スマホ側にキャプチャリクエストを送信
+  io.emit("capture-request", { sessionId, studentId });
+
+  console.log("📱 スマホへキャプチャリクエストを送信しました");
+
+  res.json({
+    success: true,
+    message: "Capture request sent",
+  });
+});
+
 // ============================================
-// WebSocket: 教員側（Webページ）
+// WebSocket: 教員側(Webページ)
 // ============================================
 io.of("/teacher").on("connection", (socket) => {
   console.log("👩‍🏫 教員が接続しました:", socket.id);
@@ -310,16 +407,16 @@ io.on("connection", (socket) => {
     console.log("📱 スマホ参加要求:", data);
     socket.anonymousId = data.anonymousId;
     socket.deviceType = "smartphone";
-    
+
     // 匿名IDのルームに参加
     socket.join(data.anonymousId);
-    
+
     // 参加成功を返す
-    socket.emit("joined", { 
+    socket.emit("joined", {
       success: true,
-      anonymousId: data.anonymousId 
+      anonymousId: data.anonymousId,
     });
-    
+
     console.log(`✅ スマホ参加完了: ${data.anonymousId}`);
   });
 
@@ -350,23 +447,23 @@ io.on("connection", (socket) => {
 // ============================================
 app.post("/api/capture-request", (req, res) => {
   const { studentId, sessionId } = req.body;
-  
+
   console.log("📸 撮影指令受信:", { studentId, sessionId });
-  
+
   if (!studentId) {
-    return res.status(400).json({ 
-      error: "studentIdが必要です" 
+    return res.status(400).json({
+      error: "studentIdが必要です",
     });
   }
-  
+
   // 該当する匿名IDのスマホに撮影を指示
   io.to(studentId).emit("capture");
-  
+
   console.log(`✅ 撮影指令送信完了: ${studentId}`);
-  
-  res.json({ 
+
+  res.json({
     success: true,
-    message: "撮影指令を送信しました" 
+    message: "撮影指令を送信しました",
   });
 });
 
@@ -416,27 +513,27 @@ process.on("unhandledRejection", (err) => {
  */
 app.post("/api/student-status", (req, res) => {
   const { sessionId, studentId, status, timestamp } = req.body;
-  
+
   console.log("📡 Chrome拡張からステータス受信:", {
     sessionId,
     studentId,
-    status
+    status,
   });
-  
+
   if (!sessionId || !studentId || !status) {
-    return res.status(400).json({ 
-      error: "必須パラメータが不足しています" 
+    return res.status(400).json({
+      error: "必須パラメータが不足しています",
     });
   }
-  
+
   // セッションが存在するか確認
   if (!sessions[sessionId]) {
     console.warn("⚠️ セッションが見つかりません:", sessionId);
-    return res.status(404).json({ 
-      error: "セッションが見つかりません" 
+    return res.status(404).json({
+      error: "セッションが見つかりません",
     });
   }
-  
+
   // 学生を登録または更新
   if (!sessions[sessionId].students[studentId]) {
     sessions[sessionId].students[studentId] = {
@@ -448,17 +545,17 @@ app.post("/api/student-status", (req, res) => {
     const oldStatus = sessions[sessionId].students[studentId].status;
     sessions[sessionId].students[studentId].status = status;
     sessions[sessionId].students[studentId].lastUpdate = timestamp;
-    
+
     if (oldStatus !== status) {
       console.log(`📊 ステータス変更: ${studentId} ${oldStatus} → ${status}`);
     }
   }
-  
+
   // 統計を更新
   updateStats(sessionId);
-  
+
   // 教員に通知
   io.of("/teacher").to(sessionId).emit("update", sessions[sessionId].stats);
-  
+
   res.json({ success: true });
 });

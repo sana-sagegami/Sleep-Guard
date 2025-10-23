@@ -1,7 +1,10 @@
 // ============================================
 // ClassGuard Chrome拡張 - Popup Script
-// セッションID対応版
+// 自動保存版
 // ============================================
+
+// 自動保存のデバウンスタイマー
+let autoSaveTimer = null;
 
 // 設定を読み込んで表示
 async function loadSettings() {
@@ -13,13 +16,18 @@ async function loadSettings() {
     "anonymousId",
   ]);
 
-  // フォームに値を設定
+  // フォームに値を設定（イベントを発火させないように）
   document.getElementById("serverUrl").value = result.serverUrl || "";
   document.getElementById("sessionId").value = result.sessionId || "";
   document.getElementById("alertMode").value = result.alertMode || "sound";
   document.getElementById("volume").value = result.volume || 70;
+  document.getElementById("volumeValue").textContent =
+    (result.volume || 70) + "%";
   document.getElementById("anonymousId").textContent =
     result.anonymousId || "未設定";
+
+  // アラートモードに対して音量スライダーの表示切り替え
+  toggleVolumeSlider(result.alertMode || "sound");
 
   // URLパラメータからセッションIDを自動取得
   await checkUrlParameters();
@@ -34,7 +42,6 @@ async function loadSettings() {
 // URLパラメータからセッションIDを取得
 async function checkUrlParameters() {
   try {
-    // 現在のタブを取得
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
@@ -47,8 +54,6 @@ async function checkUrlParameters() {
       if (sessionId && sessionId.startsWith("cls_")) {
         console.log("📋 URLからセッションID検出:", sessionId);
         document.getElementById("sessionId").value = sessionId;
-
-        // 自動保存するか確認
         showAutoFillNotification(
           "URLからセッションIDを検出しました",
           sessionId
@@ -64,8 +69,6 @@ async function checkUrlParameters() {
 async function checkClipboard() {
   try {
     const text = await navigator.clipboard.readText();
-
-    // セッションIDのパターン: cls_数字_英数字
     const sessionIdPattern = /cls_\d+_[a-z0-9]+/i;
     const match = text.match(sessionIdPattern);
 
@@ -73,7 +76,6 @@ async function checkClipboard() {
       const sessionId = match[0];
       const currentSessionId = document.getElementById("sessionId").value;
 
-      // 既に入力されていない場合のみ提案
       if (!currentSessionId || currentSessionId !== sessionId) {
         console.log("📋 クリップボードからセッションID検出:", sessionId);
         showAutoFillNotification(
@@ -97,14 +99,14 @@ function showAutoFillNotification(message, sessionId) {
   sessionIdEl.textContent = sessionId;
   notification.style.display = "block";
 
-  // 適用ボタンのイベント
-  document.getElementById("applySessionId").onclick = () => {
+  document.getElementById("applySessionId").onclick = async () => {
     document.getElementById("sessionId").value = sessionId;
     notification.style.display = "none";
     showStatus("✅ セッションIDを適用しました", "success");
+    // 自動保存を実行
+    await autoSaveSettings();
   };
 
-  // キャンセルボタンのイベント
   document.getElementById("cancelSessionId").onclick = () => {
     notification.style.display = "none";
   };
@@ -141,49 +143,66 @@ async function checkConnectionStatus() {
   }
 }
 
-// 設定を保存
-async function saveSettings() {
+// 自動保存（デバウンス付き）
+function scheduleAutoSave() {
+  // 既存のタイマーをクリア
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+  }
+
+  // 1秒後に保存（連続入力時は保存を遅延）
+  autoSaveTimer = setTimeout(() => {
+    autoSaveSettings();
+  }, 1000);
+
+  // 入力中の表示
+  showStatus("💾 入力中...", "info");
+}
+
+// 自動保存実行
+async function autoSaveSettings() {
   const serverUrl = document.getElementById("serverUrl").value;
   const sessionId = document.getElementById("sessionId").value;
   const alertMode = document.getElementById("alertMode").value;
   const volume = document.getElementById("volume").value;
 
-  // 入力チェック
+  // サーバーURLのチェック（必須）
   if (!serverUrl) {
-    alert("サーバーURLを入力してください");
+    showStatus("⚠️ サーバーURLを入力してください", "warning");
     return;
   }
 
-  // 保存
-  await chrome.storage.sync.set({
-    serverUrl,
-    sessionId,
-    alertMode,
-    volume: parseInt(volume),
-  });
-
-  // Background Scriptに通知
-  await chrome.runtime.sendMessage({
-    type: "SETTINGS_UPDATED",
-    settings: {
+  try {
+    // 保存
+    await chrome.storage.sync.set({
       serverUrl,
       sessionId,
       alertMode,
       volume: parseInt(volume),
-    },
-  });
+    });
 
-  // 保存完了メッセージ
-  const saveBtn = document.getElementById("saveBtn");
-  const originalText = saveBtn.textContent;
-  saveBtn.textContent = "✅ 保存完了";
-  saveBtn.disabled = true;
+    // Background Scriptに通知
+    await chrome.runtime.sendMessage({
+      type: "SETTINGS_UPDATED",
+      settings: {
+        serverUrl,
+        sessionId,
+        alertMode,
+        volume: parseInt(volume),
+      },
+    });
 
-  setTimeout(() => {
-    saveBtn.textContent = originalText;
-    saveBtn.disabled = false;
-    checkConnectionStatus();
-  }, 1500);
+    console.log("✅ 設定を自動保存しました");
+    showStatus("✅ 保存完了", "success");
+
+    // 接続状態を更新
+    setTimeout(() => {
+      checkConnectionStatus();
+    }, 500);
+  } catch (err) {
+    console.error("❌ 自動保存エラー:", err);
+    showStatus("❌ 保存に失敗しました", "error");
+  }
 }
 
 // ステータス表示
@@ -195,9 +214,12 @@ function showStatus(message, type = "info") {
   statusEl.className = "status-message " + type;
   statusEl.style.display = "block";
 
-  setTimeout(() => {
-    statusEl.style.display = "none";
-  }, 3000);
+  // 成功メッセージは3秒後に消す
+  if (type === "success") {
+    setTimeout(() => {
+      statusEl.style.display = "none";
+    }, 3000);
+  }
 }
 
 // QRコード生成
@@ -216,15 +238,13 @@ async function generateQRCode() {
   }
 
   const qrContainer = document.getElementById("qrcode");
-  qrContainer.innerHTML = ""; // クリア
+  qrContainer.innerHTML = "";
 
   try {
-    // 匿名IDを取得
     const result = await chrome.storage.sync.get(["anonymousId"]);
     const anonymousId =
       result.anonymousId || "anon_" + Math.random().toString(36).substr(2, 9);
 
-    // スマホPWA用のペアリング情報を生成
     const pairingInfo = {
       serverUrl: serverUrl,
       anonymousId: anonymousId,
@@ -232,12 +252,10 @@ async function generateQRCode() {
       timestamp: Date.now(),
     };
 
-    // JSON文字列に変換
     const qrData = JSON.stringify(pairingInfo);
 
     console.log("📱 QRコード生成データ:", pairingInfo);
 
-    // QRコードを生成
     new QRCode(qrContainer, {
       text: qrData,
       width: 200,
@@ -249,7 +267,6 @@ async function generateQRCode() {
 
     console.log("✅ QRコード生成成功");
 
-    // QRコードの説明を追加
     const description = document.createElement("p");
     description.style.marginTop = "10px";
     description.style.fontSize = "12px";
@@ -269,6 +286,24 @@ async function generateQRCode() {
 function updateVolumeDisplay() {
   const volume = document.getElementById("volume").value;
   document.getElementById("volumeValue").textContent = volume + "%";
+  // 音量変更時も自動保存
+  scheduleAutoSave();
+}
+// アラートモード変更時に音量スライダーの表示を切り替え
+function handleAlertModeChange() {
+  const alertMode = document.getElementById("alertMode").value;
+  toggleVolumeSlider(alertMode);
+  autoSaveSettings();
+}
+
+// 音量スライダーの表示切替
+function toggleVolumeSlider(alertMode) {
+  const volumeGroup = document.getElementById("volumeGroup");
+  if (alertMode === "sound") {
+    volumeGroup.style.display = "block";
+  } else {
+    volumeGroup.style.display = "none";
+  }
 }
 
 // イベントリスナー設定
@@ -276,19 +311,25 @@ document.addEventListener("DOMContentLoaded", () => {
   // 設定を読み込み
   loadSettings();
 
-  // 保存ボタン
-  document.getElementById("saveBtn").addEventListener("click", saveSettings);
+  // 入力フィールドの変更を監視して自動保存
+  document
+    .getElementById("serverUrl")
+    .addEventListener("input", scheduleAutoSave);
+  document
+    .getElementById("sessionId")
+    .addEventListener("input", scheduleAutoSave);
+  document
+    .getElementById("alertMode")
+    .addEventListener("change", handleAlertModeChange);
+  document
+    .getElementById("volume")
+    .addEventListener("input", updateVolumeDisplay);
 
   // QRコード生成ボタン
   document
     .getElementById("generateQR")
     .addEventListener("click", generateQRCode);
 
-  // ボリュームスライダー
-  document
-    .getElementById("volume")
-    .addEventListener("input", updateVolumeDisplay);
-
   // 定期的に接続状態を確認
-  setInterval(checkConnectionStatus, 5000);
+  setInterval(checkConnectionStatus, 10000);
 });
