@@ -102,29 +102,68 @@ async function saveSettings() {
 }
 
 // QRコード生成
-function generateQRCode() {
-  const sessionId = document.getElementById("sessionId").value;
+async function generateQRCode() {
+  const sessionId = document.getElementById("sessionId").value.trim();
+  const serverUrl = document.getElementById("serverUrl").value.trim();
 
   if (!sessionId) {
     alert("先にセッションIDを入力してください");
     return;
   }
 
+  if (!serverUrl) {
+    alert("先にサーバーURLを入力してください");
+    return;
+  }
+
   const qrContainer = document.getElementById("qrcode");
   qrContainer.innerHTML = ""; // クリア
 
-  // QRコード生成（セッションID用URL）
-  const qrUrl = `https://classguard.app/join?session=${sessionId}`;
+  try {
+    // 匿名IDを取得
+    const result = await chrome.storage.sync.get(["anonymousId"]);
+    const anonymousId =
+      result.anonymousId || "anon_" + Math.random().toString(36).substr(2, 9);
 
-  new QRCode(qrContainer, {
-    text: qrUrl,
-    width: 200,
-    height: 200,
-    colorDark: "#000000",
-    colorLight: "#ffffff",
-  });
+    // スマホPWA用のペアリング情報を生成
+    const pairingInfo = {
+      serverUrl: serverUrl,
+      anonymousId: anonymousId,
+      sessionId: sessionId,
+      timestamp: Date.now(),
+    };
 
-  document.getElementById("qrSection").style.display = "block";
+    // JSON文字列に変換
+    const qrData = JSON.stringify(pairingInfo);
+
+    console.log("📱 QRコード生成データ:", pairingInfo);
+
+    // QRコードを生成
+    new QRCode(qrContainer, {
+      text: qrData,
+      width: 200,
+      height: 200,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+
+    console.log("✅ QRコード生成成功");
+
+    // QRコードの説明を追加
+    const description = document.createElement("p");
+    description.style.marginTop = "10px";
+    description.style.fontSize = "12px";
+    description.style.color = "#666";
+    description.style.textAlign = "center";
+    description.textContent = "スマホでこのQRコードをスキャンしてください";
+    qrContainer.appendChild(description);
+
+    document.getElementById("qrSection").style.display = "block";
+  } catch (err) {
+    console.error("❌ QRコード生成エラー:", err);
+    alert("QRコード生成に失敗しました");
+  }
 }
 
 // ボリューム値の表示を更新

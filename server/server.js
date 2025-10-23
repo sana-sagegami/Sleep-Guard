@@ -171,9 +171,6 @@ io.of("/teacher").on("connection", (socket) => {
     console.log("📚 新しい授業セッションを開始しました");
     console.log("🔑 セッションID:", sessionId);
     console.log(
-      "🌐 学生参加URL: https://classguard.app/join?session=" + sessionId
-    );
-    console.log(
       "📱 Chrome拡張でこのセッションIDを入力してください: " + sessionId
     );
     console.log("=".repeat(60));
@@ -302,41 +299,74 @@ io.of("/student").on("connection", (socket) => {
 });
 
 // ============================================
-// WebSocket: スマホ側（PWA）
+// WebSocket: スマートフォン側（PWA）
 // ============================================
-io.of("/smartphone").on("connection", (socket) => {
-  console.log(`[スマホ接続] Socket ID: ${socket.id}`);
+io.on("connection", (socket) => {
+  console.log("📱 スマホ接続:", socket.id);
+  console.log("📡 Transport:", socket.conn.transport.name);
 
-  /**
-   * 参加（匿名IDで識別）
-   */
-  socket.on("join", (anonymousId) => {
-    console.log(`[スマホ参加] 匿名ID: ${anonymousId}`);
-
+  // スマホとして参加
+  socket.on("smartphone-join", (data) => {
+    console.log("📱 スマホ参加要求:", data);
+    socket.anonymousId = data.anonymousId;
+    socket.deviceType = "smartphone";
+    
     // 匿名IDのルームに参加
-    socket.join(anonymousId);
+    socket.join(data.anonymousId);
+    
+    // 参加成功を返す
+    socket.emit("joined", { 
+      success: true,
+      anonymousId: data.anonymousId 
+    });
+    
+    console.log(`✅ スマホ参加完了: ${data.anonymousId}`);
   });
 
-  /**
-   * 撮影指令を受信（学生側から転送される）
-   */
-  socket.on("capture-" + socket.id, () => {
-    socket.emit("capture");
+  // 撮影指令（Chrome拡張から送信される）
+  socket.on("request-capture", (anonymousId) => {
+    console.log(`📸 撮影指令送信: ${anonymousId}`);
+    // 該当する匿名IDのスマホに撮影を指示
+    io.to(anonymousId).emit("capture");
   });
 
-  /**
-   * 撮影完了通知
-   */
+  // 撮影完了通知
   socket.on("capture-complete", (data) => {
-    console.log(`[撮影完了] 成功: ${data.success}`);
-    // 必要に応じて学生側に通知
+    console.log("📸 撮影完了通知:", socket.anonymousId, data);
+    // 必要に応じてChrome拡張に通知
   });
 
-  /**
-   * 切断
-   */
+  // 切断
   socket.on("disconnect", () => {
-    console.log(`[スマホ切断] Socket ID: ${socket.id}`);
+    console.log("📱 スマホ切断:", socket.id);
+    if (socket.anonymousId) {
+      console.log(`   匿名ID: ${socket.anonymousId}`);
+    }
+  });
+});
+
+// ============================================
+// HTTP API: Chrome拡張からスマホに撮影指令を送る
+// ============================================
+app.post("/api/capture-request", (req, res) => {
+  const { studentId, sessionId } = req.body;
+  
+  console.log("📸 撮影指令受信:", { studentId, sessionId });
+  
+  if (!studentId) {
+    return res.status(400).json({ 
+      error: "studentIdが必要です" 
+    });
+  }
+  
+  // 該当する匿名IDのスマホに撮影を指示
+  io.to(studentId).emit("capture");
+  
+  console.log(`✅ 撮影指令送信完了: ${studentId}`);
+  
+  res.json({ 
+    success: true,
+    message: "撮影指令を送信しました" 
   });
 });
 
