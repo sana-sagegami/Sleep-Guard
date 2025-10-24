@@ -159,6 +159,27 @@
         background: #248a3d;
       }
 
+      #controlDetection {
+        color: white;
+        margin-top: 10px;
+      }
+
+      #controlDetection.stop {
+        background: #ff3b30;
+      }
+
+      #controlDetection.stop:hover {
+        background: #d32f2f;
+      }
+
+      #controlDetection.start {
+        background: #34c759;
+      }
+
+      #controlDetection.start:hover {
+        background: #248a3d;
+      }
+
       #qrSection {
         display: none;
         margin-top: 20px;
@@ -425,6 +446,8 @@
     </div>
 
     <button id="generateQR">📱 スマホ用QRコード生成</button>
+
+    <button id="controlDetection" class="stop">⏹️ 監視を終了</button>
 
     <div id="qrSection">
       <h3>📱 スマホペアリング用QRコード</h3>

@@ -397,9 +397,141 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("generateQR")
     .addEventListener("click", generateQRCode);
 
+  // 制御ボタン（停止/再スタート）
+  document
+    .getElementById("controlDetection")
+    .addEventListener("click", toggleDetectionHandler);
+
   // 定期的に接続状態を確認（10秒ごと）
   setInterval(checkConnectionStatus, 10000);
 
   // 検知ステータスを定期的に更新（2秒ごと）
   setInterval(updateDetectionStatus, 2000);
+
+  // ボタン状態を更新（2秒ごと）
+  setInterval(updateControlButton, 2000);
+
+  // 初回ボタン状態更新
+  updateControlButton();
 });
+
+// ボタン状態を更新
+async function updateControlButton() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "GET_DETECTION_STATUS",
+    });
+
+    const button = document.getElementById("controlDetection");
+
+    if (!button) return;
+
+    if (response && response.active) {
+      // 監視中 → 終了ボタン
+      button.className = "stop";
+      button.textContent = "⏹️ 監視を終了";
+    } else {
+      // 停止中 → 再スタートボタン
+      button.className = "start";
+      button.textContent = "▶️ 監視を再開";
+    }
+  } catch (err) {
+    console.error("ボタン状態更新エラー:", err);
+  }
+}
+
+// 監視の開始/停止を切り替え
+async function toggleDetectionHandler() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "GET_DETECTION_STATUS",
+    });
+
+    if (response && response.active) {
+      // 監視中 → 停止
+      await stopDetection();
+    } else {
+      // 停止中 → 再開
+      await startDetection();
+    }
+  } catch (err) {
+    console.error("❌ 監視切り替えエラー:", err);
+    showStatus("❌ 操作に失敗しました", "error");
+  }
+}
+
+// 監視を停止
+async function stopDetection() {
+  if (!confirm("監視を終了しますか？")) {
+    return;
+  }
+
+  try {
+    // Background Scriptに停止指示
+    await chrome.runtime.sendMessage({
+      type: "STOP_DETECTION",
+    });
+
+    // Content Scriptに停止指示
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    if (tab && tab.id) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          type: "STOP_DETECTION",
+        });
+      } catch (err) {
+        console.log("Content Scriptへの停止指示失敗:", err.message);
+      }
+    }
+
+    showStatus("✅ 監視を終了しました", "success");
+    console.log("✅ 監視終了完了");
+
+    // ボタン状態を更新
+    updateControlButton();
+
+    // 接続状態を更新
+    setTimeout(() => {
+      checkConnectionStatus();
+    }, 500);
+  } catch (err) {
+    console.error("❌ 監視終了エラー:", err);
+    showStatus("❌ 監視終了に失敗しました", "error");
+  }
+}
+
+// 監視を再開
+async function startDetection() {
+  try {
+    // セッションIDをチェック
+    const sessionId = document.getElementById("sessionId").value.trim();
+
+    if (!sessionId) {
+      showStatus("⚠️ セッションIDを入力してください", "warning");
+      return;
+    }
+
+    // Background Scriptに開始指示
+    await chrome.runtime.sendMessage({
+      type: "START_DETECTION",
+    });
+
+    showStatus("✅ 監視を再開しました", "success");
+    console.log("✅ 監視再開完了");
+
+    // ボタン状態を更新
+    updateControlButton();
+
+    // 接続状態を更新
+    setTimeout(() => {
+      checkConnectionStatus();
+    }, 500);
+  } catch (err) {
+    console.error("❌ 監視再開エラー:", err);
+    showStatus("❌ 監視再開に失敗しました", "error");
+  }
+}

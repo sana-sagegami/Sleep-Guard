@@ -1,34 +1,27 @@
 {
   "manifest_version": 3,
-  "name": "ClassGuard",
-  "version": "1.0.0",
-  "description": "オンライン授業での居眠り検知システム",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "notifications",
-    "tabs",
-    "clipboardRead"
-  ],
-  "host_permissions": ["https://*/*", "http://*/*"],
+  "name": "ClassGuard - 居眠り検知システム",
+  "version": "1.0",
+  "description": "授業中の居眠りを検知してアラートを送信",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
+      "js": ["face-api.min.js", "content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["models/*"],
+      "matches": ["<all_urls>"]
     }
   ],
   "action": {
     "default_popup": "popup.html"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["alert.html"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

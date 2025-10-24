@@ -16,14 +16,15 @@ let currentStatus = "awake";
 let lastSentStatus = "";
 let faceNotDetectedTime = 0;
 let detectionInterval = null;
+let faceDetectionInterval = null;
 let currentSessionId = null;
+let monitoringTabId = null; // 監視対象のタブID
 
 console.log("📋 変数初期化完了");
 
 // 拡張機能インストール時
 chrome.runtime.onInstalled.addListener(() => {
   console.log("🔧 拡張機能インストール処理開始");
-
   chrome.storage.sync.set({
     serverUrl: DEFAULT_SERVER_URL,
     alertMode: "sound",
@@ -104,12 +105,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         case "GET_DETECTION_STATUS":
-          sendResponse({
+          console.log("📊 検知ステータス要求受信");
+          console.log("   detectionActive:", detectionActive);
+          console.log("   currentStatus:", currentStatus);
+          console.log("   faceNotDetectedTime:", faceNotDetectedTime);
+          console.log("   currentSessionId:", currentSessionId);
+
+          const statusResponse = {
             active: detectionActive,
             status: currentStatus,
             notDetectedTime: faceNotDetectedTime,
             sessionId: currentSessionId,
-          });
+          };
+
+          console.log("✅ 返信データ:", statusResponse);
+          sendResponse(statusResponse);
           break;
 
         default:
@@ -244,14 +254,51 @@ function startDetection() {
   faceNotDetectedTime = 0;
   lastSentStatus = "";
 
-  // Content Scriptに通知
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  // Content Scriptに通知（注入も試行）
+  chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     if (tabs[0]?.id) {
-      chrome.tabs
-        .sendMessage(tabs[0].id, { type: "START_DETECTION" })
-        .catch((err) =>
-          console.log("📱 Content Script通信エラー:", err.message)
-        );
+      const tab = tabs[0];
+
+      // 監視対象のタブIDを保存
+      monitoringTabId = tab.id;
+      console.log("📋 監視対象タブID保存:", monitoringTabId);
+
+      // 特殊ページはスキップ
+      if (
+        tab.url &&
+        (tab.url.startsWith("chrome://") ||
+          tab.url.startsWith("edge://") ||
+          tab.url.startsWith("about:"))
+      ) {
+        console.warn("⚠️ 特殊ページのため検知をスキップ:", tab.url);
+        return;
+      }
+
+      try {
+        // まずメッセージ送信を試行
+        await chrome.tabs.sendMessage(tab.id, { type: "START_DETECTION" });
+        console.log("✅ Content Scriptに検知開始通知成功");
+      } catch (err) {
+        console.warn("⚠️ Content Script未読み込み、注入を試行");
+
+        try {
+          // Content Scriptを注入
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ["content.js"],
+          });
+          console.log("✅ Content Script注入成功");
+
+          // 2秒待って初期化を待つ
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // 再度検知開始を送信
+          await chrome.tabs.sendMessage(tab.id, { type: "START_DETECTION" });
+          console.log("✅ 検知開始メッセージ送信成功");
+        } catch (injectErr) {
+          console.error("❌ Content Script注入失敗:", injectErr.message);
+        }
+      }
     }
   });
 
@@ -260,6 +307,11 @@ function startDetection() {
     console.log("🔍 定期ステータス送信");
     sendStatusToServer(currentStatus);
   }, 10000);
+
+  // 顔検出を1秒ごとに実行
+  faceDetectionInterval = setInterval(() => {
+    detectFace();
+  }, 1000);
 
   // 初回ステータス送信（即座に）
   console.log("📤 初回ステータス送信");
@@ -277,22 +329,161 @@ function stopDetection() {
 
   detectionActive = false;
 
+  // 定期ステータス送信を停止
   if (detectionInterval) {
     clearInterval(detectionInterval);
     detectionInterval = null;
+    console.log("✅ 定期ステータス送信停止");
   }
 
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]?.id) {
-      chrome.tabs
-        .sendMessage(tabs[0].id, { type: "STOP_DETECTION" })
-        .catch((err) =>
-          console.log("📱 Content Script通信エラー:", err.message)
-        );
-    }
-  });
+  // 顔検出を停止
+  if (faceDetectionInterval) {
+    clearInterval(faceDetectionInterval);
+    faceDetectionInterval = null;
+    console.log("✅ 顔検出停止");
+  }
+
+  // Content Scriptに停止通知
+  if (monitoringTabId) {
+    chrome.tabs
+      .sendMessage(monitoringTabId, { type: "STOP_DETECTION" })
+      .catch((err) => console.log("📱 Content Script通信エラー:", err.message));
+
+    // 監視対象タブIDをクリア
+    monitoringTabId = null;
+    console.log("✅ 監視対象タブIDクリア");
+  }
 
   console.log("✅ 検知停止完了");
+}
+
+// 顔検出を実行
+async function detectFace() {
+  console.log("🔍 顔検出開始 (経過: " + faceNotDetectedTime + "秒)");
+
+  if (!monitoringTabId) {
+    console.warn("⚠️ 監視対象タブIDが設定されていません");
+    faceNotDetectedTime += 1;
+    checkSleepingStatus();
+    return;
+  }
+
+  try {
+    // タブの存在確認
+    const tab = await chrome.tabs.get(monitoringTabId);
+    console.log("✅ 監視対象タブ確認:", tab.id, tab.url);
+
+    // 特殊ページのチェック
+    if (
+      tab.url.startsWith("chrome://") ||
+      tab.url.startsWith("edge://") ||
+      tab.url.startsWith("about:")
+    ) {
+      console.warn("⚠️ 特殊ページのため顔検出スキップ:", tab.url);
+      faceNotDetectedTime += 1;
+      checkSleepingStatus();
+      return;
+    }
+
+    console.log("📤 顔検出メッセージ送信:", monitoringTabId);
+
+    // タイムアウト付きでメッセージ送信
+    const response = await Promise.race([
+      chrome.tabs.sendMessage(monitoringTabId, {
+        type: "DETECT_FACE",
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("タイムアウト")), 5000)
+      ),
+    ]);
+
+    console.log("📥 顔検出レスポンス:", response);
+
+    if (response && response.faceDetected) {
+      console.log("✅ 顔検出: あり");
+      faceNotDetectedTime = 0;
+      updateStatus("awake");
+
+      // sleeping状態から復帰
+      if (currentStatus !== "awake") {
+        console.log("😊 顔検出により起床状態に復帰");
+        updateStatus("awake");
+      }
+    } else {
+      console.log(
+        "❌ 顔検出: なし (カウント: " + (faceNotDetectedTime + 1) + "秒)"
+      );
+      faceNotDetectedTime += 1;
+      checkSleepingStatus();
+    }
+  } catch (err) {
+    console.error("❌ 顔検出エラー:", err.message);
+
+    // エラーの種類を判定
+    if (err.message === "タイムアウト") {
+      console.error("   Content Scriptが応答しません。カメラ初期化中の可能性があります。");
+      // タイムアウト時はカウントを増やさない（初期化待ち）
+      return;
+    } else if (err.message.includes("Receiving end does not exist")) {
+      console.error("   Content Scriptが読み込まれていません。注入を試行します。");
+      
+      // Content Scriptを注入
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: monitoringTabId },
+          files: ["face-api.min.js", "content.js"],
+        });
+        console.log("✅ Content Script注入成功");
+        
+        // 2秒待ってからSTART_DETECTIONを送信
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        
+        await chrome.tabs.sendMessage(monitoringTabId, {
+          type: "START_DETECTION",
+        });
+        console.log("✅ 検知開始メッセージ送信成功");
+        
+        // さらに1秒待ってから顔検出を再試行
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return; // この回の顔検出はスキップ
+      } catch (injectErr) {
+        console.error("❌ Content Script注入失敗:", injectErr);
+      }
+    }
+
+    // その他のエラー時はカウント増加
+    faceNotDetectedTime += 1;
+    console.log("⚠️ エラーによりカウント増加:", faceNotDetectedTime + "秒");
+    checkSleepingStatus();
+  }
+}
+
+
+// 居眠り状態をチェック
+function checkSleepingStatus() {
+  console.log("📊 居眠りチェック:", {
+    faceNotDetectedTime: faceNotDetectedTime,
+    閾値: 10,
+    判定: faceNotDetectedTime >= 10 ? "居眠り" : "起きている",
+  });
+
+  if (faceNotDetectedTime >= 10) {
+    console.log(`🚨 ${faceNotDetectedTime}秒間顔未検出 → 居眠り判定`);
+    updateStatus("sleeping");
+  }
+}
+
+// ステータス更新
+function updateStatus(newStatus) {
+  const oldStatus = currentStatus;
+  currentStatus = newStatus;
+  console.log(`📊 ステータス更新: ${oldStatus} → ${newStatus}`);
+
+  // サーバーへ送信（ステータスが変わった場合のみ）
+  if (newStatus !== lastSentStatus) {
+    console.log("📤 サーバーへステータス送信準備");
+    sendStatusToServer(newStatus);
+  }
 }
 
 // 顔検出結果処理
