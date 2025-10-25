@@ -208,6 +208,16 @@
         font-size: 0.9rem;
       }
 
+      .github-link {
+        color: #667eea;
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+
+      .github-link:hover {
+        text-decoration: underline;
+      }
+
       @media (max-width: 768px) {
         h1 {
           font-size: 2.5rem;
@@ -310,13 +320,21 @@
         </ol>
 
         <div style="text-align: center; margin-top: 30px">
+          <!-- ✅ download属性を削除（クロスオリジン対応） -->
           <a
             href="https://github.com/sana-sagegami/Sleep-Guard/releases/download/v1.0.0/classguard.zip"
             class="download-btn"
-            download="classguard.zip"
           >
-            📥 ClassGuard をダウンロード</a
-          >
+            📥 ClassGuard をダウンロード
+          </a>
+        </div>
+        
+        <div style="text-align: center; margin-top: 15px">
+          <p style="color: #666; font-size: 0.9rem">
+            または <a href="https://github.com/sana-sagegami/Sleep-Guard/releases" 
+                      class="github-link"
+                      target="_blank">GitHub Releases</a> から直接ダウンロード
+          </p>
         </div>
       </div>
 
