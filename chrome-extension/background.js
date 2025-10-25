@@ -226,6 +226,8 @@ async function testServerConnection() {
   }
 }
 
+// ...existing code...
+
 // 検知開始
 function startDetection() {
   console.log("🚀 検知開始処理");
@@ -282,15 +284,15 @@ function startDetection() {
         console.warn("⚠️ Content Script未読み込み、注入を試行");
 
         try {
-          // Content Scriptを注入
+          // Content Scriptを注入（face-api.jsも含める）
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            files: ["content.js"],
+            files: ["face-api.js", "content.js"], // ← ここを修正！
           });
           console.log("✅ Content Script注入成功");
 
-          // 2秒待って初期化を待つ
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          // 3秒待って初期化を待つ（face-api.jsの読み込みに時間がかかる）
+          await new Promise((resolve) => setTimeout(resolve, 3000)); // ← 2秒→3秒に変更
 
           // 再度検知開始を送信
           await chrome.tabs.sendMessage(tab.id, { type: "START_DETECTION" });

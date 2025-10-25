@@ -46,7 +46,6 @@ async function loadFaceAPI() {
   });
 }
 
-
 // 検知状態インジケーターを作成
 function createStatusIndicator() {
   if (statusIndicator) return;
@@ -404,43 +403,130 @@ async function initCamera() {
     // 緑のライトが点灯しているか確認を促す
     const cameraStatus = document.createElement("div");
     cameraStatus.style.cssText = `
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.95);
+  color: white;
+  padding: 30px;
+  border-radius: 12px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-align: center;
+  max-width: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+`;
+
+    cameraStatus.innerHTML = `
+  <div style="font-size: 48px; margin-bottom: 20px;">📹</div>
+  <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">
+    カメラを確認してください
+  </div>
+  <div style="font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+    Macの画面上部にある<br>
+    <span style="color: #00ff00; font-weight: 600;">🟢 緑のライト</span>が<br>
+    点灯していますか？
+  </div>
+  <div style="display: flex; gap: 10px; justify-content: center;">
+    <button id="cameraConfirmYes" style="
+      background: #34c759;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+      はい、点灯しています
+    </button>
+    <button id="cameraConfirmNo" style="
+      background: #ff3b30;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+      いいえ、点灯していません
+    </button>
+  </div>
+`;
+
+    document.body.appendChild(cameraStatus);
+
+    // DOMに追加された後、確実にイベントリスナーを設定
+    setTimeout(() => {
+      const yesBtn = document.getElementById("cameraConfirmYes");
+      const noBtn = document.getElementById("cameraConfirmNo");
+
+      console.log("🔘 ボタン要素取得:", { yesBtn, noBtn });
+
+      if (!yesBtn || !noBtn) {
+        console.error("❌ ボタン要素が見つかりません");
+        return;
+      }
+
+      // 「はい」ボタン
+      yesBtn.addEventListener("click", () => {
+        console.log("✅ ユーザー確認: カメラライト点灯");
+        cameraStatus.remove();
+
+        // ビデオを非表示に
+        if (video) {
+          video.style.display = "none";
+        }
+
+        console.log("========================================");
+        console.log("✅ カメラ初期化完了！");
+        console.log("========================================");
+        resolve(true);
+      });
+
+      // 「いいえ」ボタン
+      noBtn.addEventListener("click", () => {
+        console.error("❌ ユーザー確認: カメラライト未点灯");
+        cameraStatus.remove();
+
+        // トラブルシューティング情報を表示
+        const troubleshoot = document.createElement("div");
+        troubleshoot.style.cssText = `
       position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.9);
+      background: rgba(0, 0, 0, 0.95);
       color: white;
       padding: 30px;
       border-radius: 12px;
-      z-index: 9999999;
+      z-index: 2147483647;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       text-align: center;
-      max-width: 400px;
+      max-width: 500px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     `;
 
-    cameraStatus.innerHTML = `
-      <div style="font-size: 48px; margin-bottom: 20px;">📹</div>
+        troubleshoot.innerHTML = `
+      <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
       <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">
-        カメラを確認してください
+        カメラが起動していません
       </div>
-      <div style="font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-        Macの画面上部にある<br>
-        <span style="color: #00ff00; font-weight: 600;">🟢 緑のライト</span>が<br>
-        点灯していますか？
+      <div style="font-size: 14px; line-height: 1.8; text-align: left; margin-bottom: 20px;">
+        <strong>確認事項:</strong><br><br>
+        1️⃣ <strong>システム環境設定</strong>を開く<br>
+        2️⃣ <strong>セキュリティとプライバシー</strong>をクリック<br>
+        3️⃣ <strong>カメラ</strong>タブを選択<br>
+        4️⃣ <strong>Google Chrome</strong>にチェックが入っているか確認<br><br>
+        5️⃣ 他のアプリ（Zoom、FaceTimeなど）がカメラを使用していないか確認<br><br>
+        6️⃣ ブラウザを再起動してみる
       </div>
-      <button id="cameraConfirmYes" style="
-        background: #00ff00;
-        color: black;
-        border: none;
-        padding: 12px 30px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        margin: 0 10px;
-      ">はい、点灯しています</button>
-      <button id="cameraConfirmNo" style="
-        background: #ff3b30;
+      <button id="closeTroubleshoot" style="
+        background: #007aff;
         color: white;
         border: none;
         padding: 12px 30px;
@@ -448,64 +534,22 @@ async function initCamera() {
         font-size: 14px;
         font-weight: 600;
         cursor: pointer;
-        margin: 0 10px;
-      ">いいえ、点灯していません</button>
+        transition: all 0.2s;
+      " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+        閉じる
+      </button>
     `;
-
-    document.body.appendChild(cameraStatus);
-
-    return new Promise((resolve) => {
-      document.getElementById("cameraConfirmYes").onclick = () => {
-        console.log("✅ ユーザー確認: カメラライト点灯");
-        cameraStatus.remove();
-
-        // ビデオを非表示に戻す
-        video.style.display = "none";
-
-        console.log("========================================");
-        console.log("✅ カメラ初期化完了！");
-        console.log("========================================");
-        resolve(true);
-      };
-
-      document.getElementById("cameraConfirmNo").onclick = () => {
-        console.error("❌ ユーザー確認: カメラライト未点灯");
-        cameraStatus.remove();
-
-        // トラブルシューティング情報を表示
-        const troubleshoot = document.createElement("div");
-        troubleshoot.style.cssText = cameraStatus.style.cssText;
-        troubleshoot.innerHTML = `
-          <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-          <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">
-            カメラが起動していません
-          </div>
-          <div style="font-size: 14px; line-height: 1.8; text-align: left; margin-bottom: 20px;">
-            <strong>確認事項:</strong><br><br>
-            1️⃣ <strong>システム環境設定</strong>を開く<br>
-            2️⃣ <strong>セキュリティとプライバシー</strong>をクリック<br>
-            3️⃣ <strong>カメラ</strong>タブを選択<br>
-            4️⃣ <strong>Google Chrome</strong>にチェックが入っているか確認<br><br>
-            5️⃣ 他のアプリ（Zoom、FaceTimeなど）がカメラを使用していないか確認<br><br>
-            6️⃣ ブラウザを再起動してみる
-          </div>
-          <button id="closeTroubleshoot" style="
-            background: #007aff;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-          ">閉じる</button>
-        `;
 
         document.body.appendChild(troubleshoot);
 
-        document.getElementById("closeTroubleshoot").onclick = () => {
-          troubleshoot.remove();
-        };
+        setTimeout(() => {
+          const closeBtn = document.getElementById("closeTroubleshoot");
+          if (closeBtn) {
+            closeBtn.addEventListener("click", () => {
+              troubleshoot.remove();
+            });
+          }
+        }, 100);
 
         // ストリームを停止
         if (stream) {
@@ -517,8 +561,14 @@ async function initCamera() {
         }
 
         resolve(false);
-      };
-    });
+      });
+
+      // ボタンをハイライト表示して確認
+      yesBtn.style.outline = "3px solid rgba(52, 199, 89, 0.5)";
+      setTimeout(() => {
+        yesBtn.style.outline = "none";
+      }, 1000);
+    }, 100); // 100ms待ってからイベントリスナーを設定
   } catch (err) {
     console.error("========================================");
     console.error("❌ カメラ初期化エラー");
@@ -625,7 +675,7 @@ async function detectFace() {
 
       // 顎が鼻より大きく下にある場合、頭が下を向いている
       const headAngle = chinY - noseY;
-      headDown = headAngle > 50; // しきい値：50ピクセル以上なら下向き
+      headDown = headAngle > 70; // しきい値：70ピクセル以上なら下向き（緩和）
 
       console.log(
         "👁️ 目の開閉度 (EAR):",
@@ -635,7 +685,8 @@ async function detectFace() {
       console.log(
         "📐 頭の角度:",
         headAngle.toFixed(1),
-        headDown ? "下向き" : "正面"
+        headDown ? "下向き" : "正面",
+        `(閾値: 70)`
       );
     }
 
@@ -669,19 +720,35 @@ async function detectFace() {
       updateStatus(true);
     }
 
-    // Background Scriptに結果を送信
-    chrome.runtime
-      .sendMessage({
+    // Background Scriptに結果を送信（エラーハンドリング強化）
+    try {
+      await chrome.runtime.sendMessage({
         type: "FACE_DETECTED",
         detected: !isSleeping,
         eyesClosed: eyesClosed,
         headDown: headDown,
-      })
-      .catch((err) => {
-        console.log("Background Scriptへの送信エラー:", err.message);
       });
+    } catch (sendError) {
+      // Extension context invalidated エラーを無視
+      if (sendError.message.includes("Extension context invalidated")) {
+        console.warn(
+          "⚠️ 拡張機能コンテキストが無効化されました。検知を停止します。"
+        );
+        stopDetection();
+      } else {
+        console.warn("⚠️ Background Scriptへの送信エラー:", sendError.message);
+      }
+    }
   } catch (err) {
     console.error("顔検出エラー:", err);
+
+    // Extension context invalidated の場合は検知を停止
+    if (err.message && err.message.includes("Extension context invalidated")) {
+      console.warn(
+        "⚠️ 拡張機能コンテキストが無効化されました。検知を停止します。"
+      );
+      stopDetection();
+    }
   }
 }
 
@@ -850,11 +917,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "DETECT_FACE":
-      // 顔検出を即座に実行
-      console.log("🔍 顔検出リクエスト受信 - 検出を実行");
+      console.log("🔍 顔検出リクエスト受信");
+
+      // 検知が開始されていない場合は自動的に開始
+      if (!isDetecting) {
+        console.log("⚠️ 検知が停止中のため、自動的に開始します");
+        (async () => {
+          await startDetection();
+          // 検知開始後、少し待ってから検出実行
+          setTimeout(async () => {
+            await detectFace();
+            console.log("   検出結果:", faceDetected);
+            sendResponse({ faceDetected: faceDetected });
+          }, 2000); // 2秒待つ（カメラ初期化とモデル読み込み）
+        })();
+        return true; // 非同期レスポンス
+      }
+
+      // 検知中の場合は即座に検出実行
+      console.log("✅ 検知中 - 顔検出を実行");
       (async () => {
         await detectFace();
-        // detectFace内でグローバル変数faceDetectedが更新される
         console.log("   検出結果:", faceDetected);
         sendResponse({ faceDetected: faceDetected });
       })();
