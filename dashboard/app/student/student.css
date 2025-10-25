@@ -1,0 +1,304 @@
+.student-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Join Form */
+.join-form {
+  background: white;
+  border-radius: 20px;
+  padding: 50px 40px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.logo {
+  font-size: 80px;
+  margin-bottom: 20px;
+}
+
+.join-form h1 {
+  font-size: 2.5rem;
+  color: #667eea;
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 1.2rem;
+  margin-bottom: 40px;
+}
+
+.form-group {
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.3s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.btn-join {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+.btn-join:hover {
+  transform: translateY(-2px);
+}
+
+.info-box {
+  margin-top: 30px;
+  padding: 20px;
+  background: #f7f9fc;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.info-box p {
+  margin: 10px 0;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+/* Active Page */
+.student-page.active {
+  display: block;
+  padding: 0;
+}
+
+.video-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  overflow: hidden;
+}
+
+.video-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.status-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+}
+
+.status-icon {
+  font-size: 48px;
+}
+
+.status-text {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.status-overlay.status-active {
+  background: rgba(52, 199, 89, 0.9);
+}
+
+.status-overlay.status-drowsy {
+  background: rgba(255, 149, 0, 0.9);
+  animation: pulse-warning 2s infinite;
+}
+
+.status-overlay.status-sleeping {
+  background: rgba(255, 59, 48, 0.9);
+  animation: pulse-alert 1s infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes pulse-alert {
+  0%, 100% { transform: scale(1); box-shadow: 0 5px 20px rgba(255, 59, 48, 0.5); }
+  50% { transform: scale(1.1); box-shadow: 0 10px 40px rgba(255, 59, 48, 0.8); }
+}
+
+.student-name {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 15px 25px;
+  border-radius: 10px;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(255,255,255,0.95);
+  padding: 20px;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  max-width: 300px;
+}
+
+.controls h2 {
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+  color: #667eea;
+}
+
+.controls p {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+/* Debug Controls */
+.debug-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.debug-controls button {
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #f0f0f0;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s;
+}
+
+.debug-controls button:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+/* Error State */
+.error-state {
+  background: white;
+  border-radius: 20px;
+  padding: 60px 40px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-width: 500px;
+}
+
+.error-icon {
+  font-size: 100px;
+  margin-bottom: 20px;
+}
+
+.error-state h1 {
+  color: #ff3b30;
+  margin-bottom: 15px;
+}
+
+.error-state p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .join-form {
+    padding: 40px 30px;
+  }
+
+  .status-overlay {
+    top: 10px;
+    right: 10px;
+    padding: 15px 20px;
+  }
+
+  .status-icon {
+    font-size: 36px;
+  }
+
+  .status-text {
+    font-size: 1.2rem;
+  }
+
+  .controls {
+    bottom: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+
+  .student-name {
+    bottom: auto;
+    top: 10px;
+    left: 10px;
+    font-size: 1.1rem;
+    padding: 10px 20px;
+  }
+}
+
+/* PWA Install Prompt */
+.pwa-prompt {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  padding: 15px 25px;
+  border-radius: 50px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  z-index: 1000;
+}
+
+.pwa-prompt button {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 600;
+}
