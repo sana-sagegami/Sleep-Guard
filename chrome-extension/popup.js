@@ -1,6 +1,6 @@
 // ============================================
 // ClassGuard Chrome拡張 - Popup Script
-// Pusher版（シンプル）
+// Pusher版（Vercelダッシュボード連携）
 // ============================================
 
 console.log("🎨 Popup Script 開始");
@@ -138,7 +138,7 @@ async function saveSettings() {
     (response) => {
       if (response && response.success) {
         console.log("✅ 設定保存完了");
-        showMessage("設定を保存しました", "success");
+        showMessage("設定を保存しました！", "success");
       } else {
         console.error("❌ 設定保存失敗");
         showMessage("設定の保存に失敗しました", "error");
@@ -166,7 +166,7 @@ async function testConnection() {
       elements.connectionStatus.className = "connection-status connected";
     } else {
       console.error("❌ 接続失敗:", response.message);
-      showMessage("接続に失敗しました: " + response.message, "error");
+      showMessage("接続に失敗: " + response.message, "error");
       elements.connectionStatus.textContent = "❌ 接続失敗";
       elements.connectionStatus.className = "connection-status disconnected";
     }
@@ -194,7 +194,7 @@ async function startDetection() {
 
     if (response && response.success) {
       console.log("✅ 検知開始成功");
-      showMessage("居眠り検知を開始しました", "success");
+      showMessage("居眠り検知を開始しました！", "success");
       updateStatus();
     } else {
       console.error("❌ 検知開始失敗");
@@ -270,6 +270,8 @@ async function updateStatus() {
 // メッセージ表示
 function showMessage(message, type = "info") {
   const messageElement = document.getElementById("message");
+  if (!messageElement) return;
+
   messageElement.textContent = message;
   messageElement.className = `message ${type}`;
   messageElement.style.display = "block";

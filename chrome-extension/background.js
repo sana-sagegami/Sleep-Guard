@@ -1,13 +1,12 @@
 // ============================================
 // ClassGuard Chrome拡張 - Background Script
-// Pusher版（シンプル）
+// Pusher版（Vercelダッシュボード連携）
 // ============================================
 
 console.log("🔧 ClassGuard Background Script 開始 (Pusher版)");
 
-// ダッシュボードURL（デプロイ後に変更）
-const DASHBOARD_URL =
-  "https://dashboard-sana-sagegami-sanas-projects-a7ff6a0f.vercel.app/"; // ← あなたのURLに変更！
+// ⚠️ 重要: あなたのVercelダッシュボードURLに変更してください
+const DASHBOARD_URL = "https://dashboard-inky-iota-87.vercel.app"; // ← ここを変更！
 
 // グローバル変数
 let settings = {};
@@ -118,14 +117,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function testConnection() {
   try {
     const url = `${settings.dashboardUrl}/api/health`;
+    console.log("🔍 接続テスト:", url);
+
     const response = await fetch(url);
 
     if (response.ok) {
-      return { success: true, message: "ダッシュボードに接続成功" };
+      console.log("✅ ダッシュボード接続成功");
+      return { success: true, message: "ダッシュボードに接続成功！" };
     } else {
+      console.error("❌ 接続失敗:", response.status);
       return { success: false, message: "接続失敗: " + response.status };
     }
   } catch (error) {
+    console.error("❌ 接続エラー:", error);
     return { success: false, message: error.message };
   }
 }
@@ -141,6 +145,7 @@ async function startDetection() {
 
   if (!currentSessionId) {
     console.error("❌ セッションIDが未設定");
+    alert("先生画面からセッションIDを取得して設定してください");
     return;
   }
 
@@ -193,7 +198,7 @@ async function startDetection() {
   console.log("✅ 検知開始完了");
 
   // 初期ステータス送信
-  sendStatusToServer("active", true, false);
+  sendStatusToServer("active", false, false);
 }
 
 // 検知停止
@@ -277,7 +282,7 @@ async function performFaceDetection() {
   }
 }
 
-// ステータスをサーバーに送信
+// ステータスをサーバーに送信（Pusher経由）
 async function sendStatusToServer(status, eyesClosed, headDown) {
   if (!currentSessionId) return;
 
@@ -297,7 +302,7 @@ async function sendStatusToServer(status, eyesClosed, headDown) {
       },
     };
 
-    console.log("📤 送信:", status);
+    console.log("📤 送信:", status, "→", url);
 
     const response = await fetch(url, {
       method: "POST",
@@ -306,9 +311,18 @@ async function sendStatusToServer(status, eyesClosed, headDown) {
     });
 
     if (response.ok) {
-      console.log("✅ 送信成功");
+      const result = await response.json();
+      console.log("✅ 送信成功:", result);
     } else {
-      console.error("❌ 送信失敗:", response.status);
+      const errorText = await response.text();
+      console.error("❌ 送信失敗:", response.status, errorText);
+
+      if (response.status === 404) {
+        console.error("⚠️ セッションが見つかりません");
+        alert(
+          "セッションが見つかりません。先生が授業を開始しているか確認してください。"
+        );
+      }
     }
   } catch (error) {
     console.error("❌ 送信エラー:", error);
@@ -342,3 +356,4 @@ function playAlertSound() {
 }
 
 console.log("✅ Background Script 初期化完了");
+console.log("📡 ダッシュボードURL:", DASHBOARD_URL);
