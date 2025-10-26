@@ -24,6 +24,7 @@
   let headDown = false;
   let eyesClosedStartTime = null;
   let headDownStartTime = null;
+  let faceNotDetectedStartTime = null; // 顔が検出されなくなった時刻
   let lastStatusSentTime = 0;
 
   // 設定
@@ -34,8 +35,9 @@
     studentName: "",
     alertMode: "sound",
     volume: 70,
-    eyeClosedThreshold: 5.0, // 3秒間目を閉じ続けたら
-    headDownThreshold: 45, // 35度以上下を向いたら（25→35に変更）
+    eyeClosedThreshold: 2.0, // 2秒間目を閉じ続けたら居眠り判定
+    headDownThreshold: 30, // 30度以上下を向いたら（より敏感に）
+    faceNotDetectedThreshold: 5.0, // 5秒間顔が検出されなかったら居眠り判定
     detectionInterval: 500,
     statusUpdateInterval: 5000,
   };
@@ -203,8 +205,15 @@
     }
 
     try {
+      // 検出感度を上げる（scoreThresholdを下げる）
       const detections = await faceapi
-        .detectSingleFace(videoElement, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(
+          videoElement,
+          new faceapi.TinyFaceDetectorOptions({
+            inputSize: 416, // 大きいサイズで精度向上
+            scoreThreshold: 0.3, // 低い閾値で検出しやすく（デフォルト: 0.5）
+          })
+        )
         .withFaceLandmarks();
 
       return detections;
@@ -245,15 +254,17 @@
   function isHeadDown(landmarks, threshold) {
     const pitch = calculateHeadPitch(landmarks);
 
-    // より厳格に判定
+    // より緩い判定（頭を下げても検出しやすく）
     const down = pitch > threshold;
 
-    // デバッグログを追加
-    console.log(
-      `👤 Head pitch: ${pitch.toFixed(1)}° (threshold: ${threshold}°) - ${
-        down ? "🙇 DOWN" : "✅ OK"
-      }`
-    );
+    // デバッグログ
+    if (pitch > threshold - 10) {
+      console.log(
+        `👤 Head pitch: ${pitch.toFixed(1)}° (threshold: ${threshold}°) - ${
+          down ? "🙇 DOWN" : "⚠️ 警戒中"
+        }`
+      );
+    }
 
     return down;
   }
@@ -308,13 +319,15 @@
     const rightEAR = calculateEAR(rightEye);
     const avgEAR = (leftEAR + rightEAR) / 2.0;
 
-    // 閾値をさらに下げる（0.18 → 0.15）
-    const threshold = 0.15;
+    // しっかりと目の閉じを判定（閾値を上げて敏感に）
+    const threshold = 0.25; // 0.20 → 0.25 に上げてより確実に検出
     const closed = avgEAR < threshold;
 
-    // デバッグログ
+    // デバッグログ - 常に表示して状態を確認
     console.log(
-      `👁️ EAR: ${avgEAR.toFixed(3)} (threshold: ${threshold}) - ${
+      `👁️ Left EAR: ${leftEAR.toFixed(3)}, Right EAR: ${rightEAR.toFixed(
+        3
+      )}, Avg EAR: ${avgEAR.toFixed(3)} (threshold: ${threshold}) - ${
         closed ? "😪 CLOSED" : "✅ OPEN"
       }`
     );
@@ -398,6 +411,9 @@
         }
       }
 
+      // 顔が検出されているので、未検出時間をリセット
+      faceNotDetectedStartTime = null;
+
       // 顔検出の描画
       drawDetections(detections);
 
@@ -410,12 +426,27 @@
       if (faceDetected) {
         console.log("❌ Face lost");
         faceDetected = false;
-        eyesClosed = false;
-        headDown = false;
-        eyesClosedStartTime = null;
-        headDownStartTime = null;
+        faceNotDetectedStartTime = Date.now(); // 未検出開始時刻を記録
         notifyPopup("FACE_LOST");
+      } else if (faceNotDetectedStartTime) {
+        // 顔が検出されない状態が継続している
+        const duration = (Date.now() - faceNotDetectedStartTime) / 1000;
+        console.log(`❌ Face not detected for ${duration.toFixed(1)}s`);
+
+        // 設定した秒数以上顔が検出されない場合、居眠りと判定
+        if (duration >= settings.faceNotDetectedThreshold) {
+          console.log("🚨 Drowsiness detected: face not detected too long");
+          handleDrowsiness("face_not_detected", duration);
+          // 一度判定したらリセット（連続アラートを防ぐ）
+          faceNotDetectedStartTime = Date.now();
+        }
       }
+
+      // 状態をリセット
+      eyesClosed = false;
+      headDown = false;
+      eyesClosedStartTime = null;
+      headDownStartTime = null;
 
       // Canvasをクリア
       if (canvasElement) {
@@ -455,9 +486,25 @@
   // ============================================
 
   async function handleDrowsiness(type, duration) {
+    let message = "";
+    switch (type) {
+      case "eyes_closed":
+        message = `目を閉じている状態が${duration.toFixed(1)}秒間続いています`;
+        break;
+      case "head_down":
+        message = `頭を下げている状態が${duration.toFixed(1)}秒間続いています`;
+        break;
+      case "face_not_detected":
+        message = `顔が検出されない状態が${duration.toFixed(
+          1
+        )}秒間続いています`;
+        break;
+    }
+
     console.log(
       `😴 Drowsiness detected! Type: ${type}, Duration: ${duration.toFixed(1)}s`
     );
+    console.log(`📢 Message: ${message}`);
 
     notifyPopup("DROWSINESS_DETECTED");
 
@@ -492,6 +539,14 @@
         console.error("❌ 撮影トリガー送信失敗:", response);
       }
     } catch (error) {
+      // Extension context invalidated エラーを無視
+      if (
+        error.message &&
+        error.message.includes("Extension context invalidated")
+      ) {
+        console.warn("⚠️ 拡張機能のコンテキストが無効化されています");
+        return;
+      }
       console.error("❌ 撮影トリガーエラー:", error);
     }
   }
@@ -558,7 +613,21 @@
         console.error("❌ Failed to send status:", response?.error);
       }
     } catch (error) {
-      console.error("❌ Status send error:", error);
+      // Extension context invalidated エラーをキャッチ
+      if (
+        error.message &&
+        error.message.includes("Extension context invalidated")
+      ) {
+        console.error(
+          "❌ 拡張機能が無効化されました。ページをリロードしてください。"
+        );
+        // 検知を停止
+        stopDetection();
+        // ユーザーに通知
+        alert("拡張機能が更新されました。ページをリロードしてください。");
+      } else {
+        console.error("❌ Status send error:", error);
+      }
     }
   }
 
@@ -639,6 +708,16 @@
     Object.assign(settings, newSettings);
 
     console.log("🚀 Starting detection with settings:", settings);
+
+    // 状態変数をリセット
+    faceDetected = false;
+    eyesClosed = false;
+    headDown = false;
+    eyesClosedStartTime = null;
+    headDownStartTime = null;
+    faceNotDetectedStartTime = null;
+    lastStatusSentTime = 0;
+    console.log("🔄 Detection state variables reset");
 
     // モデル読み込み
     const modelsLoadedSuccess = await loadFaceApiModels();
