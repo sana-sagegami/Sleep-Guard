@@ -260,6 +260,7 @@ async function connectToSession(sid, stid) {
 // カメラ起動
 // ============================================
 
+
 async function startCamera() {
   try {
     console.log("📷 カメラ起動中...");
@@ -267,7 +268,7 @@ async function startCamera() {
 
     cameraStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: "user", // フロントカメラ
+        facingMode: "environment", // 外カメラ
         width: { ideal: 1280 },
         height: { ideal: 720 },
       },
@@ -285,6 +286,7 @@ async function startCamera() {
     showToast("❌ カメラの起動に失敗しました");
   }
 }
+
 
 // ============================================
 // 写真撮影

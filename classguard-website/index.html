@@ -89,6 +89,15 @@
         box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
       }
 
+      .smartphone-btn {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        box-shadow: 0 10px 30px rgba(40, 167, 69, 0.4);
+      }
+
+      .smartphone-btn:hover {
+        box-shadow: 0 15px 40px rgba(40, 167, 69, 0.6);
+      }
+
       .features {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -172,6 +181,81 @@
         font-size: 1.2rem;
       }
 
+      /* スマホセクション用のスタイル */
+      .smartphone-section {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        margin-bottom: 40px;
+        color: white;
+      }
+
+      .smartphone-section h2 {
+        color: white;
+        margin-bottom: 20px;
+        font-size: 2rem;
+        text-align: center;
+      }
+
+      .smartphone-section p {
+        font-size: 1.1rem;
+        line-height: 1.8;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      .smartphone-steps {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 30px;
+        margin-bottom: 30px;
+      }
+
+      .smartphone-steps ol {
+        counter-reset: step-counter;
+        list-style: none;
+      }
+
+      .smartphone-steps li {
+        counter-increment: step-counter;
+        padding: 15px 20px 15px 60px;
+        margin-bottom: 12px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        position: relative;
+      }
+
+      .smartphone-steps li::before {
+        content: counter(step-counter);
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: white;
+        color: #28a745;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+      }
+
+      .url-box {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        margin: 20px 0;
+        font-family: monospace;
+        font-size: 1.1rem;
+        word-break: break-all;
+        color: white;
+      }
+
       footer {
         text-align: center;
         color: white;
@@ -236,6 +320,10 @@
         .hero {
           padding: 40px 20px;
         }
+
+        .smartphone-section {
+          padding: 30px 20px;
+        }
       }
     </style>
   </head>
@@ -296,6 +384,62 @@
         </div>
       </div>
 
+      <!-- ✅ スマホ用セクションを追加 -->
+      <div class="smartphone-section" id="smartphone">
+        <h2>📱 スマホで自動撮影</h2>
+        <p>
+          居眠りが検知されると、スマホで自動的に撮影します。<br />
+          PCのChrome拡張機能と連携して動作します。
+        </p>
+
+        <div class="smartphone-steps">
+          <ol>
+            <li>
+              <strong>スマホで以下のURLを開く</strong><br />
+              ブラウザ（Safari/Chrome）でアクセスしてください。
+            </li>
+            <li>
+              <strong>「📷 QRコードスキャンを開始」をタップ</strong><br />
+              カメラ権限を許可してください。
+            </li>
+            <li>
+              <strong>拡張機能に表示されたQRコードを読み取る</strong><br />
+              PCのChrome拡張機能で「検知開始」後にQRコードが表示されます。
+            </li>
+            <li>
+              <strong>自動接続完了</strong><br />
+              居眠りが検知されると、スマホで自動撮影されます。
+            </li>
+          </ol>
+        </div>
+
+        <div class="url-box">
+          https://dashboard-inky-iota-87.vercel.app/smartphone.html
+        </div>
+
+        <div style="text-align: center">
+          <a
+            href="https://dashboard-inky-iota-87.vercel.app/smartphone.html"
+            class="download-btn smartphone-btn"
+            target="_blank"
+          >
+            📱 スマホ用ページを開く
+          </a>
+        </div>
+
+        <p
+          style="
+            margin-top: 30px;
+            font-size: 0.95rem;
+            opacity: 0.9;
+            text-align: center;
+          "
+        >
+          💡 ヒント:
+          このページをホーム画面に追加すると、アプリのように使えます！
+        </p>
+      </div>
+
       <div class="install-section" id="install">
         <h2>インストール方法</h2>
         <ol class="install-steps">
@@ -326,7 +470,6 @@
         </ol>
 
         <div style="text-align: center; margin-top: 30px">
-          <!-- ✅ 正しいGitHub ReleasesのダウンロードURL -->
           <a
             href="https://github.com/sana-sagegami/Sleep-Guard/releases/download/v1.0.0/classguard.zip"
             class="download-btn"
@@ -335,11 +478,13 @@
             📥 ClassGuard をダウンロード
           </a>
         </div>
-        
+
         <div style="text-align: center; margin-top: 15px">
-          <a href="https://github.com/sana-sagegami/Sleep-Guard/releases" 
-             class="github-link"
-             target="_blank">
+          <a
+            href="https://github.com/sana-sagegami/Sleep-Guard/releases"
+            class="github-link"
+            target="_blank"
+          >
             または GitHub Releases から直接ダウンロード →
           </a>
         </div>
@@ -353,6 +498,7 @@
           <li>TensorFlow.js</li>
           <li>JavaScript</li>
           <li>WebRTC (getUserMedia)</li>
+          <li>Pusher (リアルタイム通信)</li>
         </ul>
       </div>
 
