@@ -1,13 +1,8 @@
-// app/page.tsx
-// シンプルな先生用ダッシュボード
-
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 export default function TeacherDashboard() {
-  const router = useRouter();
   const [sessionId, setSessionId] = useState("");
   const [studentUrl, setStudentUrl] = useState("");
   const [qrCodeUrl, setQrCodeUrl] = useState("");
@@ -15,6 +10,9 @@ export default function TeacherDashboard() {
   const [copied, setCopied] = useState(false);
   const [showMonitoring, setShowMonitoring] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
+  const [pusher, setPusher] = useState<any>(null);
+  const [connectionStatus, setConnectionStatus] =
+    useState<string>("disconnected");
 
   // セッションID生成
   const generateSessionId = () => {
@@ -56,7 +54,10 @@ export default function TeacherDashboard() {
         setShowMonitoring(true);
 
         // Pusherでリアルタイム受信開始
-        startMonitoring(newSessionId);
+        await startMonitoring(newSessionId);
+
+        // 既存の学生データを取得
+        await loadExistingStudents(newSessionId);
 
         console.log("✅ セッション作成:", newSessionId);
       } else {
@@ -70,46 +71,120 @@ export default function TeacherDashboard() {
     }
   };
 
-  // 監視開始
+  // 既存の学生データを取得
+  const loadExistingStudents = async (sid: string) => {
+    try {
+      const response = await fetch(`/api/update-status?sessionId=${sid}`);
+      const data = await response.json();
+
+      if (data.success && data.students.length > 0) {
+        console.log("📊 既存の学生データを読み込み:", data.students);
+        setStudents(data.students);
+      }
+    } catch (error) {
+      console.error("❌ 学生データの読み込みに失敗:", error);
+    }
+  };
+
+  // 監視開始（Pusher接続）
   const startMonitoring = async (sessionId: string) => {
     try {
-      // Pusher設定
+      setConnectionStatus("connecting");
+      console.log("🔌 Pusher接続を開始...");
+
+      // Pusher設定を取得
+      const configResponse = await fetch("/api/pusher-config");
+      const config = await configResponse.json();
+
+      console.log("🔑 Pusher設定を取得:", {
+        key: config.key,
+        cluster: config.cluster,
+      });
+
+      // Pusherスクリプトを動的に読み込み
+      await loadPusherScript();
+
+      // @ts-ignore
+      const Pusher = window.Pusher;
+
+      if (!Pusher) {
+        throw new Error("Pusher script not loaded");
+      }
+
+      const pusherInstance = new Pusher(config.key, {
+        cluster: config.cluster,
+        enabledTransports: ["ws", "wss"],
+      });
+
+      const channel = pusherInstance.subscribe(`session-${sessionId}`);
+
+      channel.bind("pusher:subscription_succeeded", () => {
+        console.log("✅ Pusherチャンネルに接続成功");
+        setConnectionStatus("connected");
+      });
+
+      channel.bind("pusher:subscription_error", (error: any) => {
+        console.error("❌ Pusher接続エラー:", error);
+        setConnectionStatus("error");
+      });
+
+      channel.bind("student-update", (data: any) => {
+        console.log("📥 学生更新を受信:", data.student);
+
+        setStudents((prev) => {
+          const index = prev.findIndex((s) => s.id === data.student.id);
+
+          if (index >= 0) {
+            // 既存の生徒を更新
+            const updated = [...prev];
+            updated[index] = data.student;
+            console.log(
+              `🔄 学生を更新: ${data.student.name} (${data.student.status})`
+            );
+            return updated;
+          } else {
+            // 新しい生徒を追加
+            console.log(`➕ 新しい学生を追加: ${data.student.name}`);
+            return [...prev, data.student];
+          }
+        });
+      });
+
+      setPusher(pusherInstance);
+      console.log("📡 Pusher接続完了");
+    } catch (error) {
+      console.error("❌ Pusher接続エラー:", error);
+      setConnectionStatus("error");
+      alert("リアルタイム接続に失敗しました。ページを再読み込みしてください。");
+    }
+  };
+
+  // Pusherスクリプトを読み込み
+  const loadPusherScript = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      // 既に読み込まれている場合
+      // @ts-ignore
+      if (window.Pusher) {
+        resolve();
+        return;
+      }
+
       const script = document.createElement("script");
       script.src = "https://js.pusher.com/8.2.0/pusher.min.js";
       script.async = true;
 
       script.onload = () => {
-        // @ts-ignore
-        const Pusher = window.Pusher;
+        console.log("✅ Pusherスクリプト読み込み完了");
+        resolve();
+      };
 
-        const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY || "", {
-          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "ap3",
-        });
-
-        const channel = pusher.subscribe(`session-${sessionId}`);
-
-        channel.bind("student-update", (data: any) => {
-          console.log("📥 学生更新:", data.student);
-
-          setStudents((prev) => {
-            const index = prev.findIndex((s) => s.id === data.student.id);
-            if (index >= 0) {
-              const updated = [...prev];
-              updated[index] = data.student;
-              return updated;
-            } else {
-              return [...prev, data.student];
-            }
-          });
-        });
-
-        console.log("📡 Pusher接続成功");
+      script.onerror = () => {
+        console.error("❌ Pusherスクリプトの読み込みに失敗");
+        reject(new Error("Failed to load Pusher script"));
       };
 
       document.body.appendChild(script);
-    } catch (error) {
-      console.error("Pusher接続エラー:", error);
-    }
+    });
   };
 
   // URLコピー
@@ -125,12 +200,28 @@ export default function TeacherDashboard() {
 
   // 新しいセッション
   const resetSession = () => {
+    // Pusher接続を切断
+    if (pusher) {
+      pusher.disconnect();
+      setPusher(null);
+    }
+
     setSessionId("");
     setStudentUrl("");
     setQrCodeUrl("");
     setShowMonitoring(false);
     setStudents([]);
+    setConnectionStatus("disconnected");
   };
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      if (pusher) {
+        pusher.disconnect();
+      }
+    };
+  }, [pusher]);
 
   return (
     <div style={styles.container}>
@@ -139,6 +230,24 @@ export default function TeacherDashboard() {
         <div style={styles.header}>
           <h1 style={styles.title}>👁️ ClassGuard</h1>
           <p style={styles.subtitle}>授業中の居眠り監視システム</p>
+
+          {/* 接続ステータス表示 */}
+          {showMonitoring && (
+            <div
+              style={{
+                ...styles.connectionBadge,
+                ...(connectionStatus === "connected"
+                  ? styles.connectionConnected
+                  : connectionStatus === "connecting"
+                  ? styles.connectionConnecting
+                  : styles.connectionError),
+              }}
+            >
+              {connectionStatus === "connected" && "🟢 接続中"}
+              {connectionStatus === "connecting" && "🟡 接続中..."}
+              {connectionStatus === "error" && "🔴 接続エラー"}
+            </div>
+          )}
         </div>
 
         {!sessionId ? (
@@ -199,6 +308,15 @@ export default function TeacherDashboard() {
                   <div style={styles.emptyState}>
                     <div style={styles.emptyIcon}>👥</div>
                     <p style={styles.emptyText}>学生の参加を待っています...</p>
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "#999",
+                        marginTop: "8px",
+                      }}
+                    >
+                      学生がURLにアクセスして検知を開始すると、ここに表示されます
+                    </p>
                   </div>
                 ) : (
                   <div style={styles.studentGrid}>
@@ -222,6 +340,7 @@ export default function TeacherDashboard() {
                             {student.status === "active" && "✅"}
                             {student.status === "drowsy" && "😪"}
                             {student.status === "sleeping" && "😴"}
+                            {student.status === "absent" && "❌"}
                           </span>
                         </div>
                         <div style={styles.studentDetails}>
@@ -232,6 +351,11 @@ export default function TeacherDashboard() {
                           <div style={styles.studentDetail}>
                             📍 {student.headDown ? "下向き" : "正常"}
                           </div>
+                          {student.sleepDuration > 0 && (
+                            <div style={styles.studentDetail}>
+                              ⏱️ {student.sleepDuration.toFixed(1)}秒
+                            </div>
+                          )}
                         </div>
                         <div style={styles.studentTime}>
                           最終更新:{" "}
@@ -275,7 +399,7 @@ export default function TeacherDashboard() {
   );
 }
 
-// シンプルなスタイル
+// スタイル
 const styles = {
   container: {
     minHeight: "100vh",
@@ -289,6 +413,7 @@ const styles = {
   header: {
     textAlign: "center" as const,
     marginBottom: "40px",
+    position: "relative" as const,
   },
   title: {
     fontSize: "48px",
@@ -300,6 +425,26 @@ const styles = {
     fontSize: "18px",
     color: "#666",
     margin: 0,
+  },
+  connectionBadge: {
+    display: "inline-block",
+    marginTop: "12px",
+    padding: "8px 16px",
+    borderRadius: "20px",
+    fontSize: "14px",
+    fontWeight: "bold" as const,
+  },
+  connectionConnected: {
+    backgroundColor: "#d4edda",
+    color: "#155724",
+  },
+  connectionConnecting: {
+    backgroundColor: "#fff3cd",
+    color: "#856404",
+  },
+  connectionError: {
+    backgroundColor: "#f8d7da",
+    color: "#721c24",
   },
   card: {
     backgroundColor: "#fff",
@@ -396,29 +541,6 @@ const styles = {
     fontSize: "13px",
     color: "#999",
     margin: "8px 0 0 0",
-  },
-  qrContainer: {
-    display: "flex",
-    justifyContent: "center",
-    padding: "20px",
-    backgroundColor: "#f8f9fa",
-    borderRadius: "8px",
-  },
-  qrImage: {
-    width: "250px",
-    height: "250px",
-    border: "4px solid #fff",
-    borderRadius: "8px",
-  },
-  sessionIdBox: {
-    padding: "12px",
-    backgroundColor: "#f8f9fa",
-    border: "2px solid #e0e0e0",
-    borderRadius: "6px",
-    fontFamily: "monospace",
-    fontSize: "14px",
-    color: "#333",
-    wordBreak: "break-all" as const,
   },
   emptyState: {
     textAlign: "center" as const,

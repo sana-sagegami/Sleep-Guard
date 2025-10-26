@@ -34,8 +34,8 @@
     studentName: "",
     alertMode: "sound",
     volume: 70,
-    eyeClosedThreshold: 3.0, // 3秒間目を閉じ続けたら
-    headDownThreshold: 35, // 35度以上下を向いたら（25→35に変更）
+    eyeClosedThreshold: 5.0, // 3秒間目を閉じ続けたら
+    headDownThreshold: 45, // 35度以上下を向いたら（25→35に変更）
     detectionInterval: 500,
     statusUpdateInterval: 5000,
   };
@@ -209,97 +209,45 @@
   }
 
   // ============================================
-  // 目の開閉検知（EAR - Eye Aspect Ratio）
-  // ============================================
-
-  function calculateEAR(eye) {
-    const vertical1 = euclideanDistance(eye[1], eye[5]);
-    const vertical2 = euclideanDistance(eye[2], eye[4]);
-    const horizontal = euclideanDistance(eye[0], eye[3]);
-
-    const ear = (vertical1 + vertical2) / (2.0 * horizontal);
-    return ear;
-  }
-
-  function euclideanDistance(point1, point2) {
-    const dx = point1.x - point2.x;
-    const dy = point1.y - point2.y;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  function areEyesClosed(landmarks) {
-    const leftEye = [
-      landmarks[36],
-      landmarks[37],
-      landmarks[38],
-      landmarks[39],
-      landmarks[40],
-      landmarks[41],
-    ];
-
-    const rightEye = [
-      landmarks[42],
-      landmarks[43],
-      landmarks[44],
-      landmarks[45],
-      landmarks[46],
-      landmarks[47],
-    ];
-
-    const leftEAR = calculateEAR(leftEye);
-    const rightEAR = calculateEAR(rightEye);
-    const avgEAR = (leftEAR + rightEAR) / 2.0;
-
-    const threshold = 0.2;
-    const closed = avgEAR < threshold;
-
-    if (closed) {
-      console.log(`👁️ Eyes closed (EAR: ${avgEAR.toFixed(3)})`);
-    }
-
-    return closed;
-  }
-
-  // ============================================
   // 頭の角度検知（修正版）
   // ============================================
 
   function calculateHeadPitch(landmarks) {
-    // 鼻先と顎の位置から角度を計算
+    // より正確な角度計算
     const noseTip = landmarks[30]; // 鼻先
-    const chin = landmarks[8]; // 顎
     const noseBridge = landmarks[27]; // 鼻梁
+    const chin = landmarks[8]; // 顎
+    const forehead = landmarks[21]; // 額の代替点（眉の中心）
 
-    // 垂直方向の距離
-    const verticalDistance = chin.y - noseBridge.y;
+    // 顔の中心軸の垂直方向の変化を計算
+    const faceVerticalDistance = chin.y - noseBridge.y;
+    const normalFaceHeight = 100; // 正常時の顔の高さの基準値
 
-    // 基準となる顔の高さ（正面を向いている時の値）
-    const faceHeight = Math.abs(landmarks[8].y - landmarks[27].y);
+    // 角度を計算（アークタンジェントを使用）
+    const dy = chin.y - noseTip.y;
+    const dx = Math.abs(chin.x - noseTip.x);
 
-    // 角度を計算（より正確に）
-    const angle =
-      Math.atan2(chin.y - noseTip.y, Math.abs(noseTip.x - chin.x)) *
-      (180 / Math.PI);
+    // 角度（度）
+    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
-    return Math.abs(angle);
+    // 90度から引いて、下向きの角度を取得
+    angle = Math.abs(90 - angle);
+
+    return angle;
   }
 
   function isHeadDown(landmarks, threshold) {
     const pitch = calculateHeadPitch(landmarks);
 
-    // より厳格に判定（閾値を超えた場合のみ）
+    // より厳格に判定
     const down = pitch > threshold;
 
-    if (down) {
-      console.log(
-        `🙇 Head down detected (Pitch: ${pitch.toFixed(1)}° > ${threshold}°)`
-      );
-    } else {
-      // デバッグ用
-      if (pitch > 25) {
-        console.debug(`👤 Head angle: ${pitch.toFixed(1)}° (OK)`);
-      }
-    }
+    // デバッグログを追加
+    console.log(
+      `👤 Head pitch: ${pitch.toFixed(1)}° (threshold: ${threshold}°) - ${
+        down ? "🙇 DOWN" : "✅ OK"
+      }`
+    );
 
     return down;
   }
@@ -331,15 +279,16 @@
     const rightEAR = calculateEAR(rightEye);
     const avgEAR = (leftEAR + rightEAR) / 2.0;
 
-    // 閾値を調整（0.2 → 0.18にして、より厳格に判定）
-    const threshold = 0.18;
+    // 閾値をさらに下げる（0.18 → 0.15）
+    const threshold = 0.15;
     const closed = avgEAR < threshold;
 
-    if (closed) {
-      console.log(
-        `👁️ Eyes closed detected (EAR: ${avgEAR.toFixed(3)} < ${threshold})`
-      );
-    }
+    // デバッグログ
+    console.log(
+      `👁️ EAR: ${avgEAR.toFixed(3)} (threshold: ${threshold}) - ${
+        closed ? "😪 CLOSED" : "✅ OPEN"
+      }`
+    );
 
     return closed;
   }
@@ -359,7 +308,7 @@
       faceDetected = true;
       const landmarks = detections.landmarks.positions;
 
-      // 目の開閉チェック（継続時間を厳格に）
+      // 目の開閉チェック
       const currentlyEyesClosed = areEyesClosed(landmarks);
 
       if (currentlyEyesClosed) {
@@ -367,22 +316,27 @@
           eyesClosed = true;
           eyesClosedStartTime = Date.now();
           notifyPopup("EYES_CLOSED");
+          console.log("👁️ Eyes closed started");
         } else {
           const duration = (Date.now() - eyesClosedStartTime) / 1000;
+          console.log(`👁️ Eyes closed for ${duration.toFixed(1)}s`);
+
           // 3秒以上閉じている場合のみ居眠りと判定
           if (duration >= settings.eyeClosedThreshold) {
+            console.log("🚨 Drowsiness detected: eyes closed too long");
             handleDrowsiness("eyes_closed", duration);
           }
         }
       } else {
         if (eyesClosed) {
+          console.log("👁️ Eyes opened");
           eyesClosed = false;
           eyesClosedStartTime = null;
           notifyPopup("FOCUSED");
         }
       }
 
-      // 頭の角度チェック（より厳格に）
+      // 頭の角度チェック
       const currentlyHeadDown = isHeadDown(
         landmarks,
         settings.headDownThreshold
@@ -393,15 +347,20 @@
           headDown = true;
           headDownStartTime = Date.now();
           notifyPopup("HEAD_DOWN");
+          console.log("🙇 Head down started");
         } else {
           const duration = (Date.now() - headDownStartTime) / 1000;
-          // 2秒以上下を向いている場合のみ居眠りと判定（1秒→2秒に変更）
-          if (duration >= 2.0) {
+          console.log(`🙇 Head down for ${duration.toFixed(1)}s`);
+
+          // 3秒以上下を向いている場合のみ居眠りと判定（2秒→3秒に変更）
+          if (duration >= 3.0) {
+            console.log("🚨 Drowsiness detected: head down too long");
             handleDrowsiness("head_down", duration);
           }
         }
       } else {
         if (headDown) {
+          console.log("👤 Head up");
           headDown = false;
           headDownStartTime = null;
           if (!eyesClosed) {
@@ -420,6 +379,7 @@
     } else {
       // 顔が検出されない
       if (faceDetected) {
+        console.log("❌ Face lost");
         faceDetected = false;
         eyesClosed = false;
         headDown = false;
@@ -435,6 +395,7 @@
       }
     }
   }
+
   // ============================================
   // 検出結果の描画
   // ============================================
@@ -541,21 +502,34 @@
   // ============================================
   // 定期的なステータス送信（修正版）
   // ============================================
-
   function startStatusUpdates() {
-    // 2秒ごとに現在のステータスを送信
     statusUpdateInterval = setInterval(async () => {
       if (!isDetecting) return;
 
       let status = "active";
       let duration = 0;
 
-      // ステータスを正確に判定
-      if (eyesClosed && headDown) {
-        status = "sleeping";
-        duration = eyesClosedStartTime
+      // より厳格なステータス判定
+      if (!faceDetected) {
+        status = "absent";
+      } else if (eyesClosed && headDown) {
+        // 両方の条件を満たす場合のみsleeping
+        const eyesDuration = eyesClosedStartTime
           ? (Date.now() - eyesClosedStartTime) / 1000
           : 0;
+        const headDuration = headDownStartTime
+          ? (Date.now() - headDownStartTime) / 1000
+          : 0;
+
+        if (
+          eyesDuration >= settings.eyeClosedThreshold &&
+          headDuration >= 3.0
+        ) {
+          status = "sleeping";
+          duration = Math.max(eyesDuration, headDuration);
+        } else {
+          status = "active"; // まだ継続時間が足りない
+        }
       } else if (eyesClosed) {
         const eyesDuration = eyesClosedStartTime
           ? (Date.now() - eyesClosedStartTime) / 1000
@@ -564,22 +538,27 @@
         if (eyesDuration >= settings.eyeClosedThreshold) {
           status = "drowsy";
           duration = eyesDuration;
+        } else {
+          status = "active"; // まだ継続時間が足りない
         }
       } else if (headDown) {
         const headDuration = headDownStartTime
           ? (Date.now() - headDownStartTime) / 1000
           : 0;
 
-        if (headDuration >= 2.0) {
+        if (headDuration >= 3.0) {
           status = "drowsy";
           duration = headDuration;
+        } else {
+          status = "active"; // まだ継続時間が足りない
         }
-      } else if (faceDetected) {
-        status = "active";
       } else {
-        status = "absent"; // 顔が検出されない場合
+        status = "active";
       }
 
+      console.log(
+        `📤 Sending status: ${status} (duration: ${duration.toFixed(1)}s)`
+      );
       await sendStatusToServer(status, eyesClosed, headDown, duration);
     }, settings.statusUpdateInterval);
   }
