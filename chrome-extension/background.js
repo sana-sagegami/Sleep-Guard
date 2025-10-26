@@ -109,6 +109,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // 非同期レスポンスを有効にする
   }
 
+  // スマホに撮影トリガーを送信（Pusher経由）
+  if (message.action === "TRIGGER_SMARTPHONE") {
+    console.log("📸 TRIGGER_SMARTPHONE request received");
+    triggerSmartphoneCapture(message.sessionId, message.studentId)
+      .then((success) => {
+        console.log("✅ Smartphone trigger result:", success);
+        sendResponse({ success: success });
+      })
+      .catch((error) => {
+        console.error("❌ Smartphone trigger error:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // 非同期レスポンスを有効にする
+  }
+
   // 既存のメッセージハンドラー
   (async () => {
     try {
@@ -481,6 +496,52 @@ function disconnectPusher() {
     pusher = null;
   }
   console.log("🔌 Pusher disconnected");
+}
+
+// ============================================
+// スマホに撮影トリガーを送信
+// ============================================
+
+async function triggerSmartphoneCapture(sessionId, studentId) {
+  try {
+    if (!channel || !channel.subscribed) {
+      console.error("❌ Pusher未接続");
+      return false;
+    }
+
+    console.log("📸 スマホに撮影トリガー送信:", { sessionId, studentId });
+
+    // Pusherでスマホに直接通知（サーバー経由なし）
+    // 注意: client-events機能が有効な場合のみ動作
+    // client-eventsが無効な場合は、サーバー経由で送信する必要があります
+
+    // サーバー経由で送信（推奨）
+    const dashboardUrl =
+      settings?.dashboardUrl || "https://dashboard-inky-iota-87.vercel.app";
+    const response = await fetch(
+      `${dashboardUrl}/api/trigger-smartphone-capture`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          studentId: studentId,
+          timestamp: Date.now(),
+        }),
+      }
+    );
+
+    if (response.ok) {
+      console.log("✅ 撮影トリガーを送信しました");
+      return true;
+    } else {
+      console.error("❌ 撮影トリガー送信失敗:", response.status);
+      return false;
+    }
+  } catch (error) {
+    console.error("❌ 撮影トリガーエラー:", error);
+    return false;
+  }
 }
 
 async function loadPusherScript() {

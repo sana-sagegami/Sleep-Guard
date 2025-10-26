@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#2196F3" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>ClassGuard - スマホ自動撮影</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  
+  <!-- QRコードスキャナーライブラリ -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      color: #667eea;
+    }
+
+    .header p {
+      font-size: 16px;
+      color: #666;
+    }
+
+    /* ステータスバッジ */
+    .status-badge {
+      display: inline-block;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    .status-badge.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .status-badge.connecting {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-badge.connected {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-badge.ready {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+
+    /* QRコードスキャナーエリア */
+    .scanner-section {
+      margin-bottom: 30px;
+    }
+
+    .scanner-section h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    #qr-reader {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 3px solid #667eea;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    #qr-reader video {
+      width: 100%;
+      border-radius: 12px;
+    }
+
+    .button {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .button:active {
+      transform: scale(0.98);
+    }
+
+    .button-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .button-success {
+      background: #28a745;
+      color: white;
+    }
+
+    .button-danger {
+      background: #dc3545;
+      color: white;
+    }
+
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* セッション情報 */
+    .session-info {
+      background: #f8f9fa;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .session-info.show {
+      display: block;
+    }
+
+    .session-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .session-info-row:last-child {
+      border-bottom: none;
+    }
+
+    .session-info-label {
+      font-weight: bold;
+      color: #666;
+    }
+
+    .session-info-value {
+      color: #333;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    /* カメラプレビュー */
+    .camera-preview {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      display: none;
+      border: 3px solid #28a745;
+    }
+
+    .camera-preview.show {
+      display: block;
+    }
+
+    .camera-preview video {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+    }
+
+    .camera-preview canvas {
+      display: none;
+    }
+
+    .capture-indicator {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(220, 53, 69, 0.9);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      display: none;
+      animation: pulse 1s infinite;
+    }
+
+    .capture-indicator.show {
+      display: block;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* 撮影フラッシュエフェクト */
+    .capture-flash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .capture-flash.active {
+      animation: flash 0.5s ease;
+    }
+
+    @keyframes flash {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 0.8; }
+    }
+
+    /* トースト通知 */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      display: none;
+      z-index: 1000;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    .toast.show {
+      display: block;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+      }
+      to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+    }
+
+    /* 手動入力フォーム */
+    .manual-input {
+      display: none;
+      margin-bottom: 20px;
+    }
+
+    .manual-input.show {
+      display: block;
+    }
+
+    .manual-input input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .manual-input input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    /* 撮影履歴 */
+    .capture-history {
+      margin-top: 20px;
+      display: none;
+    }
+
+    .capture-history.show {
+      display: block;
+    }
+
+    .capture-history h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #333;
+    }
+
+    .capture-item {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .capture-item img {
+      width: 60px;
+      height: 60px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+
+    .capture-item-info {
+      flex: 1;
+    }
+
+    .capture-item-time {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .capture-item-status {
+      font-size: 14px;
+      font-weight: bold;
+      color: #28a745;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- ヘッダー -->
+    <div class="header">
+      <h1>📱 ClassGuard</h1>
+      <p>居眠り監視 - スマホ自動撮影</p>
+    </div>
+
+    <!-- ステータスバッジ -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <span id="statusBadge" class="status-badge disconnected">
+        ⚪ 未接続
+      </span>
+    </div>
+
+    <!-- QRコードスキャナーセクション -->
+    <div class="scanner-section" id="scannerSection">
+      <h2>📸 QRコードをスキャン</h2>
+      <div id="qr-reader"></div>
+      <button id="startScanButton" class="button button-primary">
+        📷 QRコードスキャンを開始
+      </button>
+      <button id="stopScanButton" class="button button-danger" style="display:none;">
+        ⏹️ スキャン停止
+      </button>
+    </div>
+
+    <!-- 手動入力 -->
+    <div class="manual-input" id="manualInput">
+      <h2 style="font-size: 16px; margin-bottom: 12px;">✏️ 手動入力</h2>
+      <input type="text" id="sessionIdInput" placeholder="セッションID (session_xxx...)" />
+      <input type="text" id="studentIdInput" placeholder="学生ID (student_xxx...)" />
+      <button id="connectManualButton" class="button button-primary">
+        🔗 接続
+      </button>
+    </div>
+
+    <button id="toggleManualButton" class="button" style="background: #6c757d; color: white;">
+      ✏️ 手動入力に切り替え
+    </button>
+
+    <!-- セッション情報 -->
+    <div class="session-info" id="sessionInfo">
+      <div class="session-info-row">
+        <span class="session-info-label">セッションID:</span>
+        <span class="session-info-value" id="displaySessionId">-</span>
+      </div>
+      <div class="session-info-row">
+        <span class="session-info-label">学生ID:</span>
+        <span class="session-info-value" id="displayStudentId">-</span>
+      </div>
+      <div class="session-info-row">
+        <span class="session-info-label">撮影回数:</span>
+        <span class="session-info-value" id="captureCount">0</span>
+      </div>
+    </div>
+
+    <!-- カメラプレビュー -->
+    <div class="camera-preview" id="cameraPreview">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <canvas id="cameraCanvas"></canvas>
+      <div class="capture-indicator" id="captureIndicator">
+        📸 撮影待機中...
+      </div>
+    </div>
+
+    <!-- 切断ボタン -->
+    <button id="disconnectButton" class="button button-danger" style="display:none;">
+      🔌 切断
+    </button>
+
+    <!-- 撮影履歴 -->
+    <div class="capture-history" id="captureHistory">
+      <h3>📸 撮影履歴</h3>
+      <div id="captureList"></div>
+    </div>
+  </div>
+
+  <!-- 撮影フラッシュエフェクト -->
+  <div id="captureFlash" class="capture-flash"></div>
+
+  <!-- トースト通知 -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Pusherライブラリ -->
+  <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+
+  <script src="/smartphone.js"></script>
+</body>
+</html>

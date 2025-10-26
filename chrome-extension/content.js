@@ -464,8 +464,36 @@
     // サーバーに送信
     await sendStatusToServer("sleeping", true, true, duration);
 
+    // スマホに直接撮影トリガーを送信
+    await triggerSmartphoneCapture();
+
     // アラート実行
     await executeAlert();
+  }
+
+  // ============================================
+  // スマホに撮影トリガーを送信（Pusher経由）
+  // ============================================
+
+  async function triggerSmartphoneCapture() {
+    try {
+      console.log("📸 スマホに撮影トリガーを送信中...");
+
+      // Background script経由でPusherイベントを送信
+      const response = await chrome.runtime.sendMessage({
+        action: "TRIGGER_SMARTPHONE",
+        sessionId: settings.sessionId,
+        studentId: settings.anonymousId,
+      });
+
+      if (response?.success) {
+        console.log("✅ スマホに撮影トリガーを送信しました");
+      } else {
+        console.error("❌ 撮影トリガー送信失敗:", response);
+      }
+    } catch (error) {
+      console.error("❌ 撮影トリガーエラー:", error);
+    }
   }
 
   // ============================================
