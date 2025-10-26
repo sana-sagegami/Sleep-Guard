@@ -366,7 +366,7 @@
           // 3秒以上閉じている場合のみ居眠りと判定
           if (duration >= settings.eyeClosedThreshold) {
             console.log("🚨 Drowsiness detected: eyes closed too long");
-            handleDrowsiness("eyes_closed", duration);
+            await handleDrowsiness("eyes_closed", duration);
           }
         }
       } else {
@@ -397,7 +397,7 @@
           // 3秒以上下を向いている場合のみ居眠りと判定（2秒→3秒に変更）
           if (duration >= 3.0) {
             console.log("🚨 Drowsiness detected: head down too long");
-            handleDrowsiness("head_down", duration);
+            await handleDrowsiness("head_down", duration);
           }
         }
       } else {
@@ -436,7 +436,7 @@
         // 設定した秒数以上顔が検出されない場合、居眠りと判定
         if (duration >= settings.faceNotDetectedThreshold) {
           console.log("🚨 Drowsiness detected: face not detected too long");
-          handleDrowsiness("face_not_detected", duration);
+          await handleDrowsiness("face_not_detected", duration);
           // 一度判定したらリセット（連続アラートを防ぐ）
           faceNotDetectedStartTime = Date.now();
         }
@@ -770,7 +770,10 @@
     // settingsオブジェクトも更新
     settings.alertMode = alertMode;
 
-    console.log(`🔔 Executing alert mode: ${alertMode}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("🔔 Executing alert mode:", alertMode);
+    console.log("   Storage value:", currentSettings);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     switch (alertMode) {
       case "sound":

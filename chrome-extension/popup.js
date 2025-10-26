@@ -149,7 +149,9 @@ function selectAlertMode(mode) {
   // 音量調整の表示/非表示
   elements.volumeGroup.style.display = mode === "sound" ? "block" : "none";
 
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("🔔 Alert mode changed to:", mode);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   // 自動保存
   saveSettings();
@@ -185,7 +187,11 @@ async function saveSettings() {
     }
 
     await chrome.storage.local.set(settings);
-    console.log("💾 Settings auto-saved:", settings);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("💾 Settings auto-saved:");
+    console.log("   Alert Mode:", settings.alertMode);
+    console.log("   Volume:", settings.volume);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     showMessage("✅ 設定を保存しました", "success");
   } catch (error) {
     console.error("❌ Save error:", error);
