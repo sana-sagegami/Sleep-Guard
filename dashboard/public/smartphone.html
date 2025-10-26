@@ -495,5 +495,102 @@
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 
     <script src="/smartphone.js"></script>
+
+    <!-- </body>の直前に追加 -->
+
+    <!-- デバッグパネル -->
+    <div
+      id="debugPanel"
+      style="
+        position: fixed;
+        bottom: 80px;
+        left: 10px;
+        right: 10px;
+        max-height: 200px;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.9);
+        color: #0f0;
+        font-family: monospace;
+        font-size: 10px;
+        padding: 10px;
+        border-radius: 8px;
+        z-index: 10000;
+        display: none;
+      "
+    >
+      <div id="debugLog"></div>
+    </div>
+
+    <!-- デバッグ切り替えボタン -->
+    <button
+      id="toggleDebugButton"
+      style="
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        border: none;
+        font-size: 24px;
+        z-index: 10001;
+        cursor: pointer;
+      "
+    >
+      🐛
+    </button>
+
+    <div id="captureFlash" class="capture-flash"></div>
+    <div id="toast" class="toast"></div>
+
+    <!-- Pusherライブラリ -->
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <script src="/smartphone.js"></script>
+
+    <script>
+      // デバッグパネルの表示/非表示
+      const debugPanel = document.getElementById("debugPanel");
+      const debugLog = document.getElementById("debugLog");
+      const toggleDebugButton = document.getElementById("toggleDebugButton");
+      let debugVisible = false;
+
+      toggleDebugButton.addEventListener("click", () => {
+        debugVisible = !debugVisible;
+        debugPanel.style.display = debugVisible ? "block" : "none";
+        toggleDebugButton.textContent = debugVisible ? "✖️" : "🐛";
+      });
+
+      // コンソールログを画面に表示
+      const originalLog = console.log;
+      const originalError = console.error;
+
+      console.log = function (...args) {
+        originalLog.apply(console, args);
+        addDebugLog("LOG", args.join(" "));
+      };
+
+      console.error = function (...args) {
+        originalError.apply(console, args);
+        addDebugLog("ERROR", args.join(" "));
+      };
+
+      function addDebugLog(type, message) {
+        const logEntry = document.createElement("div");
+        logEntry.style.marginBottom = "5px";
+        logEntry.style.color = type === "ERROR" ? "#f00" : "#0f0";
+        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${type}: ${message}`;
+        debugLog.appendChild(logEntry);
+
+        // 最新のログを一番上に
+        debugLog.scrollTop = debugLog.scrollHeight;
+
+        // 最大100行まで保持
+        while (debugLog.children.length > 100) {
+          debugLog.removeChild(debugLog.firstChild);
+        }
+      }
+    </script>
   </body>
 </html>
