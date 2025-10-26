@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import "./student.css";
+import "@/app/student/student.css";
 
 export default function StudentPage() {
   const searchParams = useSearchParams();
