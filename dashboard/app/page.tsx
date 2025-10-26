@@ -1,404 +1,525 @@
+// app/page.tsx
+// シンプルな先生用ダッシュボード
+
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import "@/app/student/student.css";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function StudentPage() {
-  const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session");
+export default function TeacherDashboard() {
+  const router = useRouter();
+  const [sessionId, setSessionId] = useState("");
+  const [studentUrl, setStudentUrl] = useState("");
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showMonitoring, setShowMonitoring] = useState(false);
+  const [students, setStudents] = useState<any[]>([]);
 
-  const [name, setName] = useState("");
-  const [isJoined, setIsJoined] = useState(false);
-  const [status, setStatus] = useState<"active" | "drowsy" | "sleeping">(
-    "active"
-  );
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [faceApiLoaded, setFaceApiLoaded] = useState(false);
-  const [detectionInfo, setDetectionInfo] = useState({
-    eyesClosed: false,
-    headDown: false,
-    faceDetected: true,
-  });
+  // セッションID生成
+  const generateSessionId = () => {
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 11);
+    return `session_${timestamp}_${randomStr}`;
+  };
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const studentIdRef = useRef<string>("");
-
-  // face-api.jsをロード
-  useEffect(() => {
-    const loadFaceApi = async () => {
-      try {
-        console.log("📦 face-api.js読み込み開始");
-
-        // face-api.jsをCDNから読み込み
-        const script = document.createElement("script");
-        script.src =
-          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js";
-        script.async = true;
-
-        script.onload = async () => {
-          console.log("✅ face-api.js読み込み完了");
-
-          // @ts-ignore
-          const faceapi = window.faceapi;
-
-          if (!faceapi) {
-            console.error("❌ face-api.jsが利用できません");
-            return;
-          }
-
-          // モデルをロード
-          console.log("📦 モデル読み込み開始");
-          const MODEL_URL =
-            "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
-
-          await Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          ]);
-
-          console.log("✅ モデル読み込み完了");
-          setFaceApiLoaded(true);
-        };
-
-        script.onerror = () => {
-          console.error("❌ face-api.jsの読み込みに失敗");
-        };
-
-        document.body.appendChild(script);
-      } catch (err) {
-        console.error("❌ face-api.js初期化エラー:", err);
-      }
-    };
-
-    loadFaceApi();
-  }, []);
-
-  // 生徒IDを生成（ブラウザごとにユニーク）
-  useEffect(() => {
-    let id = localStorage.getItem("studentId");
-    if (!id) {
-      id =
-        "student_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem("studentId", id);
-    }
-    studentIdRef.current = id;
-  }, []);
-
-  // セッションに参加
-  const joinSession = async () => {
-    if (!name.trim()) {
-      alert("名前を入力してください");
-      return;
-    }
-
-    if (!sessionId) {
-      alert("セッションIDが無効です");
-      return;
-    }
-
-    if (!faceApiLoaded) {
-      alert("顔検出の準備中です。もう少しお待ちください。");
-      return;
-    }
-
-    setIsJoined(true);
-
-    // カメラを起動
+  // セッション作成
+  const createSession = async () => {
+    setLoading(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-        },
-        audio: false,
-      });
+      const newSessionId = generateSessionId();
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-
-        // ビデオが再生可能になったら検知開始
-        videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) {
-            videoRef.current.play();
-            startDetection();
-          }
-        };
-      }
-    } catch (err) {
-      console.error("カメラエラー:", err);
-      alert(
-        "カメラの起動に失敗しました。カメラへのアクセスを許可してください。"
-      );
-      setIsJoined(false);
-    }
-  };
-
-  // 顔検出を開始
-  const startDetection = () => {
-    console.log("🚀 顔検出開始");
-    setIsDetecting(true);
-
-    // 1秒ごとに顔検出
-    detectionIntervalRef.current = setInterval(async () => {
-      await detectFace();
-    }, 1000);
-  };
-
-  // 顔検出実行
-  const detectFace = async () => {
-    if (!videoRef.current || !canvasRef.current || !faceApiLoaded) {
-      return;
-    }
-
-    try {
-      // @ts-ignore
-      const faceapi = window.faceapi;
-
-      if (!faceapi) return;
-
-      // 顔検出
-      const detections = await faceapi
-        .detectSingleFace(
-          videoRef.current,
-          new faceapi.TinyFaceDetectorOptions({
-            inputSize: 224,
-            scoreThreshold: 0.5,
-          })
-        )
-        .withFaceLandmarks();
-
-      if (!detections) {
-        // 顔が検出されない
-        console.log("❌ 顔検出なし");
-        updateDetectionInfo({
-          eyesClosed: true,
-          headDown: true,
-          faceDetected: false,
-        });
-        return;
-      }
-
-      // ランドマークを取得
-      const landmarks = detections.landmarks;
-
-      // 目の開閉を判定
-      const leftEye = landmarks.getLeftEye();
-      const rightEye = landmarks.getRightEye();
-
-      const eyesClosed = checkEyesClosed(leftEye, rightEye);
-
-      // 頭の角度を判定
-      const nose = landmarks.getNose();
-      const headDown = checkHeadDown(nose);
-
-      console.log("✅ 顔検出成功:", { eyesClosed, headDown });
-
-      updateDetectionInfo({
-        eyesClosed,
-        headDown,
-        faceDetected: true,
-      });
-    } catch (err) {
-      console.error("顔検出エラー:", err);
-    }
-  };
-
-  // 目が閉じているか判定
-  const checkEyesClosed = (leftEye: any[], rightEye: any[]): boolean => {
-    // 目の上下の距離を計算
-    const leftEyeHeight = Math.abs(leftEye[1].y - leftEye[5].y);
-    const rightEyeHeight = Math.abs(rightEye[1].y - rightEye[5].y);
-
-    const avgHeight = (leftEyeHeight + rightEyeHeight) / 2;
-
-    // 閾値（小さいほど目が閉じている）
-    const threshold = 3;
-
-    return avgHeight < threshold;
-  };
-
-  // 頭が下を向いているか判定
-  const checkHeadDown = (nose: any[]): boolean => {
-    // 鼻のY座標が大きい = 下を向いている
-    const noseY = nose[3].y; // 鼻先
-    const noseBridgeY = nose[0].y; // 鼻の付け根
-
-    const diff = noseY - noseBridgeY;
-
-    // 閾値
-    const threshold = 50;
-
-    return diff > threshold;
-  };
-
-  // 検出情報を更新してステータスを判定
-  const updateDetectionInfo = (info: typeof detectionInfo) => {
-    setDetectionInfo(info);
-
-    // ステータスを判定
-    let newStatus: "active" | "drowsy" | "sleeping" = "active";
-
-    if (!info.faceDetected || (info.eyesClosed && info.headDown)) {
-      newStatus = "sleeping";
-    } else if (info.eyesClosed || info.headDown) {
-      newStatus = "drowsy";
-    }
-
-    setStatus(newStatus);
-
-    // サーバーに送信
-    sendStatus(newStatus, info);
-  };
-
-  // ステータスをサーバーに送信
-  const sendStatus = async (
-    currentStatus: "active" | "drowsy" | "sleeping",
-    info: typeof detectionInfo
-  ) => {
-    if (!sessionId) return;
-
-    try {
-      const response = await fetch("/api/update-status", {
+      // APIでセッション作成
+      const response = await fetch("/api/create-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId: sessionId,
-          student: {
-            id: studentIdRef.current,
-            name: name,
-            status: currentStatus,
-            eyesClosed: info.eyesClosed,
-            headDown: info.headDown,
-            sleepDuration: currentStatus === "sleeping" ? 1 : 0,
-            lastUpdate: Date.now(),
-          },
+          sessionId: newSessionId,
+          createdAt: Date.now(),
         }),
       });
 
-      if (!response.ok) {
-        console.error("ステータス送信失敗:", response.status);
+      if (response.ok) {
+        const baseUrl = window.location.origin;
+        const url = `${baseUrl}/student?session=${newSessionId}`;
+
+        setSessionId(newSessionId);
+        setStudentUrl(url);
+
+        // QRコード生成
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+          url
+        )}`;
+        setQrCodeUrl(qrUrl);
+
+        // 監視画面を表示
+        setShowMonitoring(true);
+
+        // Pusherでリアルタイム受信開始
+        startMonitoring(newSessionId);
+
+        console.log("✅ セッション作成:", newSessionId);
+      } else {
+        alert("セッションの作成に失敗しました");
       }
-    } catch (err) {
-      console.error("送信エラー:", err);
+    } catch (error) {
+      console.error("セッション作成エラー:", error);
+      alert("エラーが発生しました");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // クリーンアップ
-  useEffect(() => {
-    return () => {
-      if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
+  // 監視開始
+  const startMonitoring = async (sessionId: string) => {
+    try {
+      // Pusher設定
+      const script = document.createElement("script");
+      script.src = "https://js.pusher.com/8.2.0/pusher.min.js";
+      script.async = true;
 
-  if (!sessionId) {
-    return (
-      <div className="student-page">
-        <div className="error-state">
-          <div className="error-icon">⚠️</div>
-          <h1>セッションIDが無効です</h1>
-          <p>先生から共有されたURLを使用してください</p>
-        </div>
-      </div>
-    );
-  }
+      script.onload = () => {
+        // @ts-ignore
+        const Pusher = window.Pusher;
 
-  if (!isJoined) {
-    return (
-      <div className="student-page">
-        <div className="join-form">
-          <div className="logo">👨‍🎓</div>
-          <h1>ClassGuard</h1>
-          <p className="subtitle">授業に参加</p>
+        const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY || "", {
+          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "ap3",
+        });
 
-          {!faceApiLoaded && (
-            <div className="loading-indicator">
-              <div className="spinner"></div>
-              <p>顔検出システムを準備中...</p>
-            </div>
-          )}
+        const channel = pusher.subscribe(`session-${sessionId}`);
 
-          <div className="form-group">
-            <label htmlFor="name">あなたの名前</label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="山田太郎"
-              maxLength={20}
-              onKeyPress={(e) => e.key === "Enter" && joinSession()}
-              disabled={!faceApiLoaded}
-            />
-          </div>
+        channel.bind("student-update", (data: any) => {
+          console.log("📥 学生更新:", data.student);
 
-          <button
-            className="btn-join"
-            onClick={joinSession}
-            disabled={!faceApiLoaded}
-          >
-            {faceApiLoaded ? "🚀 参加する" : "準備中..."}
-          </button>
+          setStudents((prev) => {
+            const index = prev.findIndex((s) => s.id === data.student.id);
+            if (index >= 0) {
+              const updated = [...prev];
+              updated[index] = data.student;
+              return updated;
+            } else {
+              return [...prev, data.student];
+            }
+          });
+        });
 
-          <div className="info-box">
-            <p>📷 カメラへのアクセスを許可してください</p>
-            <p>🔒 データは一時的に保存され、授業終了後に削除されます</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+        console.log("📡 Pusher接続成功");
+      };
+
+      document.body.appendChild(script);
+    } catch (error) {
+      console.error("Pusher接続エラー:", error);
+    }
+  };
+
+  // URLコピー
+  const copyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(studentUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("コピー失敗:", error);
+    }
+  };
+
+  // 新しいセッション
+  const resetSession = () => {
+    setSessionId("");
+    setStudentUrl("");
+    setQrCodeUrl("");
+    setShowMonitoring(false);
+    setStudents([]);
+  };
 
   return (
-    <div className="student-page active">
-      <div className="video-container">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="video-preview"
-        />
-
-        <canvas ref={canvasRef} style={{ display: "none" }} />
-
-        <div className={`status-overlay status-${status}`}>
-          <div className="status-icon">
-            {status === "active" && "✅"}
-            {status === "drowsy" && "😪"}
-            {status === "sleeping" && "😴"}
-          </div>
-          <div className="status-text">
-            {status === "active" && "集中中"}
-            {status === "drowsy" && "眠そう"}
-            {status === "sleeping" && "居眠り検知"}
-          </div>
+    <div style={styles.container}>
+      <div style={styles.wrapper}>
+        {/* ヘッダー */}
+        <div style={styles.header}>
+          <h1 style={styles.title}>👁️ ClassGuard</h1>
+          <p style={styles.subtitle}>授業中の居眠り監視システム</p>
         </div>
 
-        <div className="student-name">{name}</div>
+        {!sessionId ? (
+          // セッション作成前
+          <div style={styles.card}>
+            <div style={styles.iconContainer}>
+              <span style={styles.icon}>📚</span>
+            </div>
+            <h2 style={styles.cardTitle}>授業を開始</h2>
+            <p style={styles.cardDesc}>セッションを作成して学生を招待します</p>
 
-        <div className="detection-info">
-          <div className="info-item">
-            👁️ {detectionInfo.eyesClosed ? "閉じている" : "開いている"}
+            <button
+              onClick={createSession}
+              disabled={loading}
+              style={{
+                ...styles.button,
+                ...(loading ? styles.buttonDisabled : {}),
+              }}
+            >
+              {loading ? "作成中..." : "🚀 授業を開始"}
+            </button>
           </div>
-          <div className="info-item">
-            📐 {detectionInfo.headDown ? "下向き" : "正常"}
+        ) : (
+          // セッション作成後
+          <div>
+            {/* 学生用URL表示 */}
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>✅ 授業を開始しました</h2>
+
+              <div style={styles.section}>
+                <label style={styles.label}>📱 学生用URL</label>
+                <div style={styles.urlContainer}>
+                  <input
+                    type="text"
+                    value={studentUrl}
+                    readOnly
+                    style={styles.urlInput}
+                  />
+                  <button onClick={copyUrl} style={styles.copyButton}>
+                    {copied ? "✅" : "📋"}
+                  </button>
+                </div>
+                {copied && <p style={styles.copySuccess}>コピーしました！</p>}
+                <p style={styles.helpText}>このURLを学生に共有してください</p>
+              </div>
+
+              {/* QRコード */}
+              {qrCodeUrl && (
+                <div style={styles.section}>
+                  <label style={styles.label}>📱 QRコード</label>
+                  <div style={styles.qrContainer}>
+                    <img src={qrCodeUrl} alt="QR Code" style={styles.qrImage} />
+                  </div>
+                  <p style={styles.helpText}>
+                    スマホでスキャンして参加できます
+                  </p>
+                </div>
+              )}
+
+              {/* セッションID */}
+              <div style={styles.section}>
+                <label style={styles.label}>🔑 セッションID</label>
+                <div style={styles.sessionIdBox}>{sessionId}</div>
+              </div>
+
+              <button onClick={resetSession} style={styles.buttonSecondary}>
+                新しい授業を開始
+              </button>
+            </div>
+
+            {/* 監視画面 */}
+            {showMonitoring && (
+              <div style={styles.card}>
+                <h2 style={styles.cardTitle}>📊 リアルタイム監視</h2>
+
+                {students.length === 0 ? (
+                  <div style={styles.emptyState}>
+                    <div style={styles.emptyIcon}>👥</div>
+                    <p style={styles.emptyText}>学生の参加を待っています...</p>
+                  </div>
+                ) : (
+                  <div style={styles.studentGrid}>
+                    {students.map((student) => (
+                      <div
+                        key={student.id}
+                        style={{
+                          ...styles.studentCard,
+                          ...(student.status === "sleeping"
+                            ? styles.studentSleeping
+                            : student.status === "drowsy"
+                            ? styles.studentDrowsy
+                            : styles.studentActive),
+                        }}
+                      >
+                        <div style={styles.studentHeader}>
+                          <span style={styles.studentName}>
+                            {student.name || "匿名"}
+                          </span>
+                          <span style={styles.studentStatus}>
+                            {student.status === "active" && "✅"}
+                            {student.status === "drowsy" && "😪"}
+                            {student.status === "sleeping" && "😴"}
+                          </span>
+                        </div>
+                        <div style={styles.studentDetails}>
+                          <div style={styles.studentDetail}>
+                            👁️{" "}
+                            {student.eyesClosed ? "閉じている" : "開いている"}
+                          </div>
+                          <div style={styles.studentDetail}>
+                            📍 {student.headDown ? "下向き" : "正常"}
+                          </div>
+                        </div>
+                        <div style={styles.studentTime}>
+                          最終更新:{" "}
+                          {new Date(student.lastUpdate).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={styles.stats}>
+                  <div style={styles.statItem}>
+                    <div style={styles.statValue}>{students.length}</div>
+                    <div style={styles.statLabel}>参加者</div>
+                  </div>
+                  <div style={styles.statItem}>
+                    <div style={styles.statValue}>
+                      {students.filter((s) => s.status === "active").length}
+                    </div>
+                    <div style={styles.statLabel}>集中中</div>
+                  </div>
+                  <div style={styles.statItem}>
+                    <div style={styles.statValue}>
+                      {students.filter((s) => s.status === "drowsy").length}
+                    </div>
+                    <div style={styles.statLabel}>眠そう</div>
+                  </div>
+                  <div style={styles.statItem}>
+                    <div style={styles.statValue}>
+                      {students.filter((s) => s.status === "sleeping").length}
+                    </div>
+                    <div style={styles.statLabel}>居眠り</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="info-item">
-            {detectionInfo.faceDetected ? "✅ 顔検出中" : "❌ 顔未検出"}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
+
+// シンプルなスタイル
+const styles = {
+  container: {
+    minHeight: "100vh",
+    backgroundColor: "#f5f5f5",
+    padding: "20px",
+  },
+  wrapper: {
+    maxWidth: "1200px",
+    margin: "0 auto",
+  },
+  header: {
+    textAlign: "center" as const,
+    marginBottom: "40px",
+  },
+  title: {
+    fontSize: "48px",
+    fontWeight: "bold" as const,
+    color: "#333",
+    margin: "0 0 10px 0",
+  },
+  subtitle: {
+    fontSize: "18px",
+    color: "#666",
+    margin: 0,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: "12px",
+    padding: "40px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+    marginBottom: "20px",
+  },
+  iconContainer: {
+    textAlign: "center" as const,
+    marginBottom: "20px",
+  },
+  icon: {
+    fontSize: "64px",
+  },
+  cardTitle: {
+    fontSize: "28px",
+    fontWeight: "bold" as const,
+    color: "#333",
+    textAlign: "center" as const,
+    margin: "0 0 10px 0",
+  },
+  cardDesc: {
+    fontSize: "16px",
+    color: "#666",
+    textAlign: "center" as const,
+    margin: "0 0 30px 0",
+  },
+  button: {
+    width: "100%",
+    padding: "16px 24px",
+    fontSize: "18px",
+    fontWeight: "bold" as const,
+    color: "#fff",
+    backgroundColor: "#007bff",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer" as const,
+    transition: "background-color 0.2s",
+  },
+  buttonDisabled: {
+    backgroundColor: "#ccc",
+    cursor: "not-allowed" as const,
+  },
+  buttonSecondary: {
+    width: "100%",
+    padding: "12px 24px",
+    fontSize: "16px",
+    fontWeight: "bold" as const,
+    color: "#333",
+    backgroundColor: "#e9ecef",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer" as const,
+    marginTop: "20px",
+  },
+  section: {
+    marginBottom: "30px",
+  },
+  label: {
+    display: "block",
+    fontSize: "14px",
+    fontWeight: "bold" as const,
+    color: "#333",
+    marginBottom: "8px",
+  },
+  urlContainer: {
+    display: "flex",
+    gap: "8px",
+  },
+  urlInput: {
+    flex: 1,
+    padding: "12px",
+    fontSize: "14px",
+    border: "2px solid #e0e0e0",
+    borderRadius: "6px",
+    fontFamily: "monospace",
+  },
+  copyButton: {
+    padding: "12px 20px",
+    fontSize: "18px",
+    backgroundColor: "#007bff",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer" as const,
+  },
+  copySuccess: {
+    fontSize: "14px",
+    color: "#28a745",
+    margin: "8px 0 0 0",
+  },
+  helpText: {
+    fontSize: "13px",
+    color: "#999",
+    margin: "8px 0 0 0",
+  },
+  qrContainer: {
+    display: "flex",
+    justifyContent: "center",
+    padding: "20px",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "8px",
+  },
+  qrImage: {
+    width: "250px",
+    height: "250px",
+    border: "4px solid #fff",
+    borderRadius: "8px",
+  },
+  sessionIdBox: {
+    padding: "12px",
+    backgroundColor: "#f8f9fa",
+    border: "2px solid #e0e0e0",
+    borderRadius: "6px",
+    fontFamily: "monospace",
+    fontSize: "14px",
+    color: "#333",
+    wordBreak: "break-all" as const,
+  },
+  emptyState: {
+    textAlign: "center" as const,
+    padding: "60px 20px",
+  },
+  emptyIcon: {
+    fontSize: "64px",
+    marginBottom: "16px",
+  },
+  emptyText: {
+    fontSize: "16px",
+    color: "#999",
+  },
+  studentGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+    gap: "16px",
+    marginBottom: "20px",
+  },
+  studentCard: {
+    padding: "16px",
+    borderRadius: "8px",
+    border: "2px solid",
+  },
+  studentActive: {
+    backgroundColor: "#d4edda",
+    borderColor: "#28a745",
+  },
+  studentDrowsy: {
+    backgroundColor: "#fff3cd",
+    borderColor: "#ffc107",
+  },
+  studentSleeping: {
+    backgroundColor: "#f8d7da",
+    borderColor: "#dc3545",
+  },
+  studentHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "12px",
+  },
+  studentName: {
+    fontSize: "18px",
+    fontWeight: "bold" as const,
+    color: "#333",
+  },
+  studentStatus: {
+    fontSize: "24px",
+  },
+  studentDetails: {
+    marginBottom: "8px",
+  },
+  studentDetail: {
+    fontSize: "14px",
+    color: "#666",
+    marginBottom: "4px",
+  },
+  studentTime: {
+    fontSize: "12px",
+    color: "#999",
+  },
+  stats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "16px",
+    marginTop: "20px",
+    padding: "20px",
+    backgroundColor: "#f8f9fa",
+    borderRadius: "8px",
+  },
+  statItem: {
+    textAlign: "center" as const,
+  },
+  statValue: {
+    fontSize: "32px",
+    fontWeight: "bold" as const,
+    color: "#007bff",
+  },
+  statLabel: {
+    fontSize: "14px",
+    color: "#666",
+    marginTop: "4px",
+  },
+};

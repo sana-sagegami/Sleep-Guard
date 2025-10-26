@@ -11,46 +11,97 @@
       }
 
       body {
-        width: 400px;
+        width: 450px;
         padding: 20px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           sans-serif;
-        background: #f5f5f7;
+        background: #ffffff;
+        color: #333;
       }
 
       .header {
         text-align: center;
-        margin-bottom: 20px;
-        padding-bottom: 15px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
         border-bottom: 2px solid #e0e0e0;
       }
 
       .header h1 {
-        font-size: 24px;
-        color: #1d1d1f;
-        margin-bottom: 5px;
+        font-size: 28px;
+        color: #333;
+        margin-bottom: 4px;
       }
 
-      .status {
+      .header p {
+        font-size: 14px;
+        color: #666;
+      }
+
+      /* ステータスパネル */
+      .status-panel {
+        background: #f8f9fa;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 20px;
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .status-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .status-label {
+        font-size: 14px;
+        color: #666;
+        font-weight: 500;
+      }
+
+      .status-value {
+        font-size: 14px;
+        font-weight: 600;
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 8px;
-        margin-top: 10px;
-        font-size: 14px;
+        gap: 6px;
       }
 
-      #connectionStatus {
-        font-weight: 600;
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
       }
 
-      #currentSession {
-        margin-top: 5px;
-        font-size: 12px;
-        color: #666;
-        display: none;
+      .status-indicator.active {
+        background: #28a745;
       }
 
+      .status-indicator.inactive {
+        background: #999;
+      }
+
+      .status-indicator.detecting {
+        background: #007bff;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      /* フォーム */
       .form-group {
         margin-bottom: 20px;
       }
@@ -59,54 +110,169 @@
         display: block;
         font-size: 14px;
         font-weight: 600;
-        color: #1d1d1f;
+        color: #333;
         margin-bottom: 8px;
       }
 
-      .label-with-badge {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+      .url-input-area {
+        background: #f8f9fa;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
       }
 
-      .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        font-size: 11px;
-        font-weight: 600;
-        border-radius: 12px;
-        background: #007aff;
-        color: white;
+      textarea {
+        width: 100%;
+        min-height: 60px;
+        padding: 8px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: "Courier New", monospace;
+        resize: vertical;
       }
 
-      .badge.optional {
-        background: #8e8e93;
+      textarea:focus {
+        outline: none;
+        border-color: #007bff;
       }
 
       input[type="text"],
-      input[type="url"],
       select {
         width: 100%;
-        padding: 10px 12px;
+        padding: 10px;
         font-size: 14px;
-        border: 1px solid #d1d1d6;
-        border-radius: 8px;
-        background: white;
-        transition: border-color 0.2s;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        background: #fff;
       }
 
       input:focus,
       select:focus {
         outline: none;
-        border-color: #007aff;
+        border-color: #007bff;
+      }
+
+      input:disabled {
+        background: #f8f9fa;
+        color: #999;
       }
 
       .help-text {
         font-size: 12px;
-        color: #8e8e93;
-        margin-top: 5px;
+        color: #999;
+        margin-top: 6px;
+        line-height: 1.4;
       }
 
+      .help-text strong {
+        color: #007bff;
+      }
+
+      /* ボタン */
+      button {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 8px;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none !important;
+      }
+
+      .btn-primary {
+        background: #007bff;
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+
+      .btn-success {
+        background: #28a745;
+        color: #fff;
+      }
+
+      .btn-success:hover {
+        background: #1e7e34;
+      }
+
+      .btn-danger {
+        background: #dc3545;
+        color: #fff;
+      }
+
+      .btn-danger:hover {
+        background: #c82333;
+      }
+
+      .btn-secondary {
+        background: #e9ecef;
+        color: #333;
+      }
+
+      .btn-secondary:hover {
+        background: #d3d6d8;
+      }
+
+      /* メッセージ */
+      .message {
+        display: none;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .message.success {
+        background: #d4edda;
+        color: #155724;
+        border: 2px solid #c3e6cb;
+      }
+
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 2px solid #f5c6cb;
+      }
+
+      .message.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 2px solid #bee5eb;
+      }
+
+      /* セッション情報 */
+      .session-info {
+        background: #fff3cd;
+        border: 2px solid #ffc107;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 16px;
+        font-size: 12px;
+      }
+
+      .session-info strong {
+        color: #856404;
+      }
+
+      /* スライダー */
       .slider-container {
         display: flex;
         align-items: center;
@@ -115,314 +281,163 @@
 
       input[type="range"] {
         flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: #e0e0e0;
+        outline: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #007bff;
+        cursor: pointer;
       }
 
       #volumeValue {
         font-size: 14px;
         font-weight: 600;
-        color: #007aff;
+        color: #007bff;
         min-width: 40px;
+        text-align: right;
       }
 
-      button {
-        width: 100%;
-        padding: 12px;
-        font-size: 14px;
-        font-weight: 600;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-
-      #saveBtn {
-        background: #007aff;
-        color: white;
-        margin-bottom: 10px;
-      }
-
-      #saveBtn:hover {
-        background: #0051d5;
-      }
-
-      #saveBtn:disabled {
-        background: #34c759;
-        cursor: not-allowed;
-      }
-
-      #generateQR {
-        background: #34c759;
-        color: white;
-      }
-
-      #generateQR:hover {
-        background: #248a3d;
-      }
-
-      #controlDetection {
-        color: white;
-        margin-top: 10px;
-      }
-
-      #controlDetection.stop {
-        background: #ff3b30;
-      }
-
-      #controlDetection.stop:hover {
-        background: #d32f2f;
-      }
-
-      #controlDetection.start {
-        background: #34c759;
-      }
-
-      #controlDetection.start:hover {
-        background: #248a3d;
-      }
-
-      #qrSection {
-        display: none;
-        margin-top: 20px;
-        padding: 20px;
-        background: white;
-        border-radius: 8px;
-        text-align: center;
-      }
-
-      #qrSection h3 {
-        margin-bottom: 15px;
-        font-size: 16px;
-        color: #1d1d1f;
-      }
-
-      #qrcode {
-        display: inline-block;
-        padding: 15px;
-        background: white;
-        border: 2px solid #e0e0e0;
-        border-radius: 8px;
-      }
-
+      /* 匿名ID */
       .info-box {
-        margin-top: 15px;
+        background: #f8f9fa;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
         padding: 12px;
-        background: #f0f0f5;
-        border-radius: 8px;
-        font-size: 12px;
-        color: #666;
-      }
-
-      .warning-box {
-        padding: 12px;
-        background: #fff3cd;
-        border: 1px solid #ffeaa7;
-        border-radius: 8px;
-        margin-bottom: 15px;
-      }
-
-      .warning-box p {
         font-size: 13px;
-        color: #856404;
-        margin: 0;
-      }
-
-      .auto-fill-notification {
-        display: none;
-        margin-bottom: 15px;
-        padding: 15px;
-        background: #e3f2fd;
-        border: 2px solid #2196f3;
-        border-radius: 8px;
-        animation: slideDown 0.3s ease-out;
-      }
-
-      @keyframes slideDown {
-        from {
-          opacity: 0;
-          transform: translateY(-10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .auto-fill-notification h4 {
-        margin: 0 0 8px 0;
-        font-size: 14px;
-        color: #1976d2;
-      }
-
-      .auto-fill-notification p {
-        margin: 0 0 12px 0;
-        font-size: 13px;
-        color: #424242;
-      }
-
-      .auto-fill-notification code {
-        display: block;
-        padding: 8px;
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 4px;
+        color: #333;
         font-family: "Courier New", monospace;
-        font-size: 12px;
         word-break: break-all;
+      }
+
+      .info-box strong {
+        color: #007bff;
+      }
+
+      /* 詳細設定（折りたたみ） */
+      details {
+        margin-bottom: 20px;
+      }
+
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #007bff;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
         margin-bottom: 12px;
       }
 
-      .auto-fill-buttons {
-        display: flex;
-        gap: 8px;
+      summary:hover {
+        background: #e9ecef;
       }
 
-      .auto-fill-buttons button {
-        flex: 1;
-        padding: 8px 12px;
-        font-size: 13px;
-      }
-
-      .btn-apply {
-        background: #2196f3;
-        color: white;
-      }
-
-      .btn-apply:hover {
-        background: #1976d2;
-      }
-
-      .btn-cancel {
-        background: #f5f5f5;
-        color: #666;
-      }
-
-      .btn-cancel:hover {
-        background: #e0e0e0;
-      }
-
-      .status-message {
-        display: none;
-        padding: 12px;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        font-size: 13px;
+      /* フッター */
+      .footer {
         text-align: center;
-      }
-
-      .status-message.success {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-
-      .status-message.error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-
-      .status-message.info {
-        background: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #e0e0e0;
+        font-size: 11px;
+        color: #999;
       }
     </style>
-    <script src="qrcode.min.js"></script>
   </head>
   <body>
+    <!-- ヘッダー -->
     <div class="header">
       <h1>👁️ ClassGuard</h1>
-      <div class="status">
-        <span id="connectionStatus">確認中...</span>
-      </div>
-      <div id="currentSession"></div>
+      <p>授業中の居眠り検知システム</p>
+    </div>
 
-      <!-- 検知ステータス表示 -->
-      <div
-        id="detectionStatus"
-        style="
-          display: none;
-          margin-top: 12px;
-          padding: 12px;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-        "
-      >
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-          "
-        >
-          <span id="detectionIcon">👀</span>
-          <span id="detectionText">監視中</span>
-        </div>
-        <div
-          id="detectionDetail"
-          style="
-            font-size: 11px;
-            font-weight: 400;
-            margin-top: 4px;
-            opacity: 0.8;
-          "
-        ></div>
+    <!-- メッセージ表示 -->
+    <div id="message" class="message"></div>
+
+    <!-- ステータスパネル -->
+    <div class="status-panel">
+      <div class="status-row">
+        <span class="status-label">接続状態</span>
+        <span class="status-value" id="connectionStatus">
+          <span class="status-indicator inactive"></span>
+          未接続
+        </span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">検知状態</span>
+        <span class="status-value" id="detectionStatus">
+          <span class="status-indicator inactive"></span>
+          停止中
+        </span>
+      </div>
+      <div class="status-row" id="currentStatusRow" style="display: none">
+        <span class="status-label">現在の状態</span>
+        <span class="status-value" id="currentStatus">✅ 集中中</span>
       </div>
     </div>
 
-    <!-- 自動入力通知 -->
-    <div id="autoFillNotification" class="auto-fill-notification">
-      <h4>🎯 セッションID検出</h4>
-      <p id="autoFillMessage"></p>
-      <code id="autoFillSessionId"></code>
-      <div class="auto-fill-buttons">
-        <button id="applySessionId" class="btn-apply">✅ 適用する</button>
-        <button id="cancelSessionId" class="btn-cancel">✕ キャンセル</button>
-      </div>
+    <!-- セッション情報 -->
+    <div class="session-info" id="sessionInfo" style="display: none">
+      <strong>📡 接続中:</strong><br />
+      <span id="currentSessionId"></span>
     </div>
 
-    <!-- ステータスメッセージ -->
-    <div id="statusMessage" class="status-message"></div>
-
-    <!-- セッションID未設定の警告 -->
-    <div class="warning-box" id="sessionWarning" style="display: none">
-      <p>
-        ⚠️
-        セッションIDが未設定です。QRコードをスキャンするか、下記に入力してください。
-      </p>
-    </div>
-
+    <!-- セッションURL入力 -->
     <div class="form-group">
-      <label for="serverUrl">サーバーURL</label>
-      <input
-        type="url"
-        id="serverUrl"
-        placeholder="https://your-server.ngrok-free.dev"
-      />
-      <div class="help-text">ngrokまたはサーバーのURL</div>
-    </div>
+      <label>🔗 学生用URL（先生画面から取得）</label>
+      <div class="url-input-area">
+        <textarea
+          id="sessionUrl"
+          placeholder="https://dashboard-inky-iota-87.vercel.app/student?session=session_xxxxx
 
-    <div class="form-group">
-      <div class="label-with-badge">
-        <label for="sessionId">セッションID</label>
-        <span class="badge">重要</span>
+先生画面で生成されたURLを貼り付けてください"
+        ></textarea>
+        <button id="extractButton" class="btn-primary" style="margin-top: 8px">
+          📋 URLから自動設定
+        </button>
       </div>
-      <input
-        type="text"
-        id="sessionId"
-        placeholder="cls_1761111513753_ldbr615bq"
-      />
       <div class="help-text">
-        💡 自動検出方法:<br />
-        • セッションIDをコピーして拡張機能を開く<br />
-        • セッションID付きのURLを開く<br />
-        • 手動入力: 教師から配布されたIDを入力
+        <strong>💡 使い方:</strong>
+        先生画面で生成された学生用URLを貼り付けて「URLから自動設定」をクリックすると、自動的にダッシュボードURLとセッションIDが設定されます
       </div>
     </div>
 
+    <!-- 詳細設定（折りたたみ） -->
+    <details>
+      <summary>⚙️ 詳細設定（上級者向け）</summary>
+      <div style="margin-top: 12px">
+        <div class="form-group">
+          <label for="dashboardUrl">📡 ダッシュボードURL</label>
+          <input
+            type="text"
+            id="dashboardUrl"
+            placeholder="https://dashboard-inky-iota-87.vercel.app"
+            disabled
+          />
+          <div class="help-text">自動設定されます</div>
+        </div>
+
+        <div class="form-group">
+          <label for="sessionId">🔑 セッションID</label>
+          <input
+            type="text"
+            id="sessionId"
+            placeholder="session_1761408351503_bqoddkikd"
+            disabled
+          />
+          <div class="help-text">自動設定されます</div>
+        </div>
+      </div>
+    </details>
+
+    <!-- アラート設定 -->
     <div class="form-group">
-      <label for="alertMode">アラートモード</label>
+      <label for="alertMode">🔔 アラートモード</label>
       <select id="alertMode">
         <option value="sound">🔊 音声アラート</option>
         <option value="wallpaper">🖼️ 壁紙変更</option>
@@ -430,34 +445,29 @@
       </select>
     </div>
 
+    <!-- 音量 -->
     <div class="form-group" id="volumeGroup">
-      <label for="volume">音量</label>
+      <label for="volume">🔊 アラート音量</label>
       <div class="slider-container">
         <input type="range" id="volume" min="0" max="100" value="70" />
-        <span id="volumeValue">70%</span>
+        <span id="volumeValue">70</span>
       </div>
     </div>
 
+    <!-- 匿名ID -->
     <div class="form-group">
-      <label>匿名ID</label>
+      <label>🆔 匿名ID</label>
       <div class="info-box">
         <strong>ID:</strong> <span id="anonymousId">読み込み中...</span>
       </div>
+      <div class="help-text">自動生成された識別用ID</div>
     </div>
 
-    <button id="generateQR">📱 スマホ用QRコード生成</button>
-
-    <button id="controlDetection" class="stop">⏹️ 監視を終了</button>
-
-    <div id="qrSection">
-      <h3>📱 スマホペアリング用QRコード</h3>
-      <div id="qrcode"></div>
-      <div class="info-box">
-        <strong>スマホでスキャンしてください</strong><br />
-        このQRコードにはサーバーURL、匿名ID、セッションIDが含まれています。<br />
-        スマホPWAでスキャンすると自動的にペアリングされます。
-      </div>
-    </div>
+    <!-- ボタン -->
+    <button id="saveButton" class="btn-primary">💾 設定を保存</button>
+    <button id="testButton" class="btn-secondary">🔍 接続テスト</button>
+    <button id="startButton" class="btn-success">▶️ 検知開始</button>
+    <button id="stopButton" class="btn-danger" disabled>⏹️ 検知停止</button>
 
     <script src="popup.js"></script>
   </body>
