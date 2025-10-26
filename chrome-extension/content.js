@@ -1,320 +1,131 @@
 // ============================================
-// ClassGuard Chrome拡張 - Content Script
-// 顔検出とカメラ処理（視覚的フィードバック付き）
+// ClassGuard Content Script - 完全版
+// 顔認識・居眠り検知システム
 // ============================================
 
-// 重複読み込みを防止
-if (window.classguardLoaded) {
-  console.log("⚠️ ClassGuard Content Script は既に読み込まれています");
-} else {
-  window.classguardLoaded = true;
-  console.log("✅ ClassGuard Content Script 初期化開始");
-}
+(async function () {
+  "use strict";
 
-let video = null;
-let canvas = null;
-let detectionInterval = null;
-let isDetecting = false;
-let statusIndicator = null;
-let faceDetected = false;
+  console.log("🚀 ClassGuard Content Script 起動");
 
-// 顔検出ライブラリ（face-api.js）を動的に読み込み
-async function loadFaceAPI() {
-  return new Promise((resolve, reject) => {
-    // 既に読み込まれているかチェック
-    if (typeof faceapi !== "undefined") {
-      console.log("✅ face-api.js は既に読み込まれています");
-      resolve();
-      return;
+  // ============================================
+  // グローバル変数
+  // ============================================
+
+  let socket = null;
+  let videoElement = null;
+  let canvasElement = null;
+  let detectionInterval = null;
+  let isDetecting = false;
+  let faceDetected = false;
+  let eyesClosed = false;
+  let headDown = false;
+  let eyesClosedStartTime = null;
+  let headDownStartTime = null;
+
+  // 設定
+  let settings = {
+    dashboardUrl: "",
+    sessionId: "",
+    anonymousId: "",
+    alertMode: "sound",
+    volume: 70,
+    eyeClosedThreshold: 3.0,
+    headDownThreshold: 25,
+    detectionInterval: 500,
+  };
+
+  // モデル読み込み状態
+  let modelsLoaded = false;
+
+  // ============================================
+  // Face-API.js 初期化
+  // ============================================
+
+  async function loadFaceApiModels() {
+    if (modelsLoaded) {
+      console.log("✅ Models already loaded");
+      return true;
     }
 
-    // manifest.jsonのcontent_scriptsで既に読み込まれているはず
-    // 少し待ってから確認
-    setTimeout(() => {
-      if (typeof faceapi !== "undefined") {
-        console.log("✅ face-api.js 読み込み確認");
-        resolve();
-      } else {
-        console.error("❌ face-api.js が読み込まれていません");
-        reject(
-          new Error(
-            "face-api.jsが見つかりません。拡張機能を再読み込みしてください。"
-          )
-        );
-      }
-    }, 500);
-  });
-}
+    try {
+      console.log("📥 Loading face-api.js models...");
 
-// 検知状態インジケーターを作成
-function createStatusIndicator() {
-  if (statusIndicator) return;
+      const modelPath = chrome.runtime.getURL("models");
 
-  // メインコンテナ
-  const container = document.createElement("div");
-  container.id = "classguard-status";
-  container.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 999999;
-    background: rgba(0, 0, 0, 0.85);
-    border-radius: 12px;
-    padding: 16px 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    min-width: 200px;
-    backdrop-filter: blur(10px);
-  `;
+      await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
 
-  // タイトル
-  const title = document.createElement("div");
-  title.style.cssText = `
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  `;
-  title.innerHTML = "👁️ ClassGuard";
-
-  // ステータス表示
-  const status = document.createElement("div");
-  status.id = "classguard-status-text";
-  status.style.cssText = `
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
-  `;
-
-  // ステータスドット
-  const dot = document.createElement("div");
-  dot.id = "classguard-status-dot";
-  dot.style.cssText = `
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #888;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 10px currentColor;
-  `;
-
-  // ステータステキスト
-  const text = document.createElement("div");
-  text.id = "classguard-status-label";
-  text.style.cssText = `
-    color: #ffffff;
-    font-size: 13px;
-    flex: 1;
-  `;
-  text.textContent = "待機中...";
-
-  status.appendChild(dot);
-  status.appendChild(text);
-  container.appendChild(title);
-  container.appendChild(status);
-
-  // カウンター（顔未検出時間）
-  const counter = document.createElement("div");
-  counter.id = "classguard-counter";
-  counter.style.cssText = `
-    margin-top: 8px;
-    padding: 8px;
-    border-radius: 6px;
-    background: rgba(255, 59, 48, 0.15);
-    color: #ff3b30;
-    font-size: 12px;
-    text-align: center;
-    display: none;
-  `;
-  counter.textContent = "未検出: 0秒";
-  container.appendChild(counter);
-
-  document.body.appendChild(container);
-  statusIndicator = container;
-}
-
-// ステータスを更新
-function updateStatus(detected, elapsedTime = 0, statusMessage = "") {
-  if (!statusIndicator) return;
-
-  const dot = document.getElementById("classguard-status-dot");
-  const label = document.getElementById("classguard-status-label");
-  const counter = document.getElementById("classguard-counter");
-
-  if (detected) {
-    // 正常状態（顔検出、目開き、頭正面）
-    dot.style.background = "#34c759";
-    dot.style.boxShadow = "0 0 15px #34c759";
-    label.textContent = "✅ 正常";
-    label.style.color = "#34c759";
-    counter.style.display = "none";
-    faceDetected = true;
-  } else {
-    // 異常状態（顔未検出、目閉じ、頭下向き）
-    dot.style.background = "#ff3b30";
-    dot.style.boxShadow = "0 0 15px #ff3b30";
-    label.textContent = `❌ ${statusMessage || "異常検出"}`;
-    label.style.color = "#ff3b30";
-
-    if (elapsedTime > 0) {
-      counter.style.display = "block";
-      counter.textContent = `⏱️ ${statusMessage}: ${elapsedTime}秒`;
-
-      // 警告レベルに応じて色を変更
-      if (elapsedTime >= 10) {
-        counter.style.background = "rgba(255, 59, 48, 0.3)";
-        counter.style.fontWeight = "bold";
-      } else if (elapsedTime >= 5) {
-        counter.style.background = "rgba(255, 149, 0, 0.2)";
-        counter.style.color = "#ff9500";
-      }
-    }
-    faceDetected = false;
-  }
-}
-
-// EAR（Eye Aspect Ratio）計算関数
-// 目の縦横比を計算して目の開閉を判定
-function calculateEAR(eye) {
-  // 目のランドマークから6点を取得
-  const p1 = eye[1];
-  const p2 = eye[2];
-  const p3 = eye[3];
-  const p4 = eye[4];
-  const p5 = eye[5];
-  const p0 = eye[0];
-
-  // 縦方向の距離2つ
-  const vertical1 = Math.sqrt(
-    Math.pow(p1.x - p5.x, 2) + Math.pow(p1.y - p5.y, 2)
-  );
-  const vertical2 = Math.sqrt(
-    Math.pow(p2.x - p4.x, 2) + Math.pow(p2.y - p4.y, 2)
-  );
-
-  // 横方向の距離
-  const horizontal = Math.sqrt(
-    Math.pow(p0.x - p3.x, 2) + Math.pow(p0.y - p3.y, 2)
-  );
-
-  // EAR = (vertical1 + vertical2) / (2 * horizontal)
-  const ear = (vertical1 + vertical2) / (2 * horizontal);
-
-  return ear;
-}
-
-// 検知停止時のステータス
-function setIdleStatus() {
-  if (!statusIndicator) return;
-
-  const dot = document.getElementById("classguard-status-dot");
-  const label = document.getElementById("classguard-status-label");
-  const counter = document.getElementById("classguard-counter");
-
-  dot.style.background = "#888";
-  dot.style.boxShadow = "0 0 10px #888";
-  label.textContent = "待機中...";
-  label.style.color = "#aaa";
-  counter.style.display = "none";
-}
-
-// カメラを初期化
-async function initCamera() {
-  try {
-    console.log("========================================");
-    console.log("📹 カメラ初期化プロセス開始");
-    console.log("========================================");
-
-    // ステップ1: 利用可能なカメラデバイスを確認
-    console.log("📹 ステップ1: カメラデバイスの確認");
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(
-      (device) => device.kind === "videoinput"
-    );
-
-    console.log("   利用可能なデバイス数:", devices.length);
-    console.log("   カメラデバイス数:", videoDevices.length);
-
-    videoDevices.forEach((device, index) => {
-      console.log(`   カメラ ${index + 1}:`, {
-        deviceId: device.deviceId,
-        label: device.label || "不明（権限が必要）",
-        groupId: device.groupId,
-      });
-    });
-
-    if (videoDevices.length === 0) {
-      console.error("❌ カメラデバイスが見つかりません");
-      alert(
-        "カメラが検出されませんでした。\n\n" +
-          "確認事項:\n" +
-          "1. カメラが物理的に接続されているか\n" +
-          "2. 他のアプリがカメラを使用していないか\n" +
-          "3. システム環境設定でカメラが有効か"
-      );
+      modelsLoaded = true;
+      console.log("✅ Face-API models loaded successfully");
+      return true;
+    } catch (error) {
+      console.error("❌ Failed to load models:", error);
+      notifyPopup("FACE_LOST");
       return false;
     }
+  }
 
-    // 既存のビデオ要素を削除
-    if (video) {
-      console.log("📹 ステップ2: 既存のビデオ要素をクリーンアップ");
-      const stream = video.srcObject;
-      if (stream) {
-        console.log("   既存のストリームを停止");
-        stream.getTracks().forEach((track) => {
-          console.log(`   トラック停止: ${track.kind} (${track.label})`);
-          track.stop();
-        });
-      }
-      video.remove();
-      video = null;
+  // ============================================
+  // ビデオ要素の作成
+  // ============================================
+
+  function createVideoElement() {
+    if (videoElement) {
+      console.log("✅ Video element already exists");
+      return videoElement;
     }
 
-    // 新しいビデオ要素を作成
-    console.log("📹 ステップ3: 新しいビデオ要素を作成");
-    video = document.createElement("video");
-    video.autoplay = true;
-    video.playsInline = true;
-    video.muted = true; // ミュート設定を追加
+    // ビデオ要素を作成
+    videoElement = document.createElement("video");
+    videoElement.id = "classguard-video";
+    videoElement.autoplay = true;
+    videoElement.muted = true;
+    videoElement.playsInline = true;
 
-    // デバッグ用に一時的に表示
-    video.style.cssText = `
+    // スタイル設定（右下に小さく表示）
+    videoElement.style.cssText = `
       position: fixed;
       bottom: 20px;
       right: 20px;
-      width: 320px;
-      height: 240px;
-      border: 3px solid #00ff00;
-      border-radius: 8px;
+      width: 240px;
+      height: 180px;
+      border: 3px solid #667eea;
+      border-radius: 12px;
       z-index: 999999;
-      background: black;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      object-fit: cover;
     `;
 
-    document.body.appendChild(video);
-    console.log("✅ ビデオ要素をDOMに追加");
+    // Canvas要素を作成（オーバーレイ表示用）
+    canvasElement = document.createElement("canvas");
+    canvasElement.id = "classguard-canvas";
+    canvasElement.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 240px;
+      height: 180px;
+      z-index: 1000000;
+      pointer-events: none;
+    `;
 
-    // カメラストリームを取得
-    console.log("📹 ステップ4: カメラストリーム取得開始");
-    console.log("   制約条件:", {
-      video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        facingMode: "user",
-      },
-    });
+    document.body.appendChild(videoElement);
+    document.body.appendChild(canvasElement);
 
-    let stream;
+    console.log("✅ Video element created");
+    return videoElement;
+  }
+
+  // ============================================
+  // カメラ起動
+  // ============================================
+
+  async function startCamera() {
     try {
-      // まず基本的な設定で試行
-      console.log("   試行1: 標準設定でカメラアクセス");
-      stream = await navigator.mediaDevices.getUserMedia({
+      console.log("📷 Starting camera...");
+
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
@@ -322,731 +133,615 @@ async function initCamera() {
         },
         audio: false,
       });
-      console.log("✅ 試行1成功");
-    } catch (err1) {
-      console.warn("⚠️ 試行1失敗:", err1.message);
 
-      try {
-        // より緩い設定で再試行
-        console.log("   試行2: 緩い設定でカメラアクセス");
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        });
-        console.log("✅ 試行2成功");
-      } catch (err2) {
-        console.error("❌ 試行2失敗:", err2.message);
-        throw err2;
-      }
-    }
+      const video = createVideoElement();
+      video.srcObject = stream;
 
-    console.log("✅ カメラストリーム取得成功");
-    console.log("   stream ID:", stream.id);
-    console.log("   active:", stream.active);
-
-    // トラック情報を詳細に表示
-    const tracks = stream.getTracks();
-    console.log("   トラック数:", tracks.length);
-    tracks.forEach((track, index) => {
-      console.log(`   トラック ${index + 1}:`, {
-        kind: track.kind,
-        label: track.label,
-        enabled: track.enabled,
-        muted: track.muted,
-        readyState: track.readyState,
-        settings: track.getSettings(),
-      });
-    });
-
-    // ビデオ要素にストリームを設定
-    console.log("📹 ステップ5: ビデオ要素にストリームを設定");
-    video.srcObject = stream;
-
-    // ビデオの準備ができるまで待機
-    await new Promise((resolve, reject) => {
-      video.onloadedmetadata = () => {
-        console.log("✅ ビデオメタデータ読み込み完了");
-        resolve();
-      };
-
-      video.onerror = (err) => {
-        console.error("❌ ビデオ読み込みエラー:", err);
-        reject(err);
-      };
-
-      // タイムアウト設定（10秒）
-      setTimeout(() => {
-        reject(new Error("ビデオ読み込みタイムアウト"));
-      }, 10000);
-    });
-
-    // ビデオ再生
-    console.log("📹 ステップ6: ビデオ再生開始");
-    await video.play();
-    console.log("✅ ビデオ再生中");
-
-    // ビデオの状態を確認
-    console.log("📹 ステップ7: ビデオ状態確認");
-    console.log("   video.videoWidth:", video.videoWidth);
-    console.log("   video.videoHeight:", video.videoHeight);
-    console.log("   video.readyState:", video.readyState);
-    console.log("   video.paused:", video.paused);
-    console.log("   video.currentTime:", video.currentTime);
-
-    if (video.readyState < 2) {
-      console.warn("⚠️ ビデオの準備が不完全です");
-      // 少し待ってから再確認
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log("   再確認 - video.readyState:", video.readyState);
-    }
-
-    // 緑のライトが点灯しているか確認を促す
-    const cameraStatus = document.createElement("div");
-    cameraStatus.style.cssText = `
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.95);
-  color: white;
-  padding: 30px;
-  border-radius: 12px;
-  z-index: 2147483647;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  text-align: center;
-  max-width: 400px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-`;
-
-    cameraStatus.innerHTML = `
-  <div style="font-size: 48px; margin-bottom: 20px;">📹</div>
-  <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">
-    カメラを確認してください
-  </div>
-  <div style="font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-    Macの画面上部にある<br>
-    <span style="color: #00ff00; font-weight: 600;">🟢 緑のライト</span>が<br>
-    点灯していますか？
-  </div>
-  <div style="display: flex; gap: 10px; justify-content: center;">
-    <button id="cameraConfirmYes" style="
-      background: #34c759;
-      color: white;
-      border: none;
-      padding: 12px 30px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-      はい、点灯しています
-    </button>
-    <button id="cameraConfirmNo" style="
-      background: #ff3b30;
-      color: white;
-      border: none;
-      padding: 12px 30px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-      いいえ、点灯していません
-    </button>
-  </div>
-`;
-
-    document.body.appendChild(cameraStatus);
-
-    // DOMに追加された後、確実にイベントリスナーを設定
-    setTimeout(() => {
-      const yesBtn = document.getElementById("cameraConfirmYes");
-      const noBtn = document.getElementById("cameraConfirmNo");
-
-      console.log("🔘 ボタン要素取得:", { yesBtn, noBtn });
-
-      if (!yesBtn || !noBtn) {
-        console.error("❌ ボタン要素が見つかりません");
-        return;
-      }
-
-      // 「はい」ボタン
-      yesBtn.addEventListener("click", () => {
-        console.log("✅ ユーザー確認: カメラライト点灯");
-        cameraStatus.remove();
-
-        // ビデオを非表示に
-        if (video) {
-          video.style.display = "none";
-        }
-
-        console.log("========================================");
-        console.log("✅ カメラ初期化完了！");
-        console.log("========================================");
-        resolve(true);
+      // ビデオが再生可能になるまで待機
+      await new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+          video.play();
+          resolve();
+        };
       });
 
-      // 「いいえ」ボタン
-      noBtn.addEventListener("click", () => {
-        console.error("❌ ユーザー確認: カメラライト未点灯");
-        cameraStatus.remove();
+      // Canvasサイズをビデオに合わせる
+      canvasElement.width = video.videoWidth;
+      canvasElement.height = video.videoHeight;
 
-        // トラブルシューティング情報を表示
-        const troubleshoot = document.createElement("div");
-        troubleshoot.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.95);
-      color: white;
-      padding: 30px;
-      border-radius: 12px;
-      z-index: 2147483647;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      text-align: center;
-      max-width: 500px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    `;
+      console.log("✅ Camera started");
+      return true;
+    } catch (error) {
+      console.error("❌ Camera error:", error);
+      alert("カメラの起動に失敗しました。カメラ権限を確認してください。");
+      return false;
+    }
+  }
 
-        troubleshoot.innerHTML = `
-      <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
-      <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">
-        カメラが起動していません
-      </div>
-      <div style="font-size: 14px; line-height: 1.8; text-align: left; margin-bottom: 20px;">
-        <strong>確認事項:</strong><br><br>
-        1️⃣ <strong>システム環境設定</strong>を開く<br>
-        2️⃣ <strong>セキュリティとプライバシー</strong>をクリック<br>
-        3️⃣ <strong>カメラ</strong>タブを選択<br>
-        4️⃣ <strong>Google Chrome</strong>にチェックが入っているか確認<br><br>
-        5️⃣ 他のアプリ（Zoom、FaceTimeなど）がカメラを使用していないか確認<br><br>
-        6️⃣ ブラウザを再起動してみる
-      </div>
-      <button id="closeTroubleshoot" style="
-        background: #007aff;
-        color: white;
-        border: none;
-        padding: 12px 30px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-      " onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-        閉じる
-      </button>
-    `;
+  // ============================================
+  // カメラ停止
+  // ============================================
 
-        document.body.appendChild(troubleshoot);
-
-        setTimeout(() => {
-          const closeBtn = document.getElementById("closeTroubleshoot");
-          if (closeBtn) {
-            closeBtn.addEventListener("click", () => {
-              troubleshoot.remove();
-            });
-          }
-        }, 100);
-
-        // ストリームを停止
-        if (stream) {
-          stream.getTracks().forEach((track) => track.stop());
-        }
-        if (video) {
-          video.remove();
-          video = null;
-        }
-
-        resolve(false);
-      });
-
-      // ボタンをハイライト表示して確認
-      yesBtn.style.outline = "3px solid rgba(52, 199, 89, 0.5)";
-      setTimeout(() => {
-        yesBtn.style.outline = "none";
-      }, 1000);
-    }, 100); // 100ms待ってからイベントリスナーを設定
-  } catch (err) {
-    console.error("========================================");
-    console.error("❌ カメラ初期化エラー");
-    console.error("========================================");
-    console.error("   エラー名:", err.name);
-    console.error("   エラーメッセージ:", err.message);
-    console.error("   エラースタック:", err.stack);
-
-    // エラーの種類に応じたメッセージ
-    let errorMessage = "カメラの起動に失敗しました。\n\n";
-
-    if (err.name === "NotAllowedError") {
-      errorMessage +=
-        "原因: カメラへのアクセスが拒否されました\n\n" +
-        "対処法:\n" +
-        "1. ブラウザのアドレスバー左側のアイコンをクリック\n" +
-        "2. カメラの権限を「許可」に変更\n" +
-        "3. ページを再読み込み";
-    } else if (err.name === "NotFoundError") {
-      errorMessage +=
-        "原因: カメラが見つかりませんでした\n\n" +
-        "対処法:\n" +
-        "1. カメラが物理的に接続されているか確認\n" +
-        "2. システム環境設定でカメラが有効か確認";
-    } else if (err.name === "NotReadableError") {
-      errorMessage +=
-        "原因: カメラが他のアプリで使用中です\n\n" +
-        "対処法:\n" +
-        "1. Zoom、FaceTime、Skypeなどを終了\n" +
-        "2. ブラウザを再起動";
-    } else {
-      errorMessage += `エラー: ${err.message}`;
+  function stopCamera() {
+    if (videoElement && videoElement.srcObject) {
+      const tracks = videoElement.srcObject.getTracks();
+      tracks.forEach((track) => track.stop());
+      videoElement.srcObject = null;
     }
 
-    alert(errorMessage);
-    return false;
-  }
-}
+    if (videoElement) {
+      videoElement.remove();
+      videoElement = null;
+    }
 
-// 顔検出を実行（拡張版：目の開閉と頭の角度も検出）
-async function detectFace() {
-  if (!video) {
-    console.error("❌ videoオブジェクトが存在しません");
-    return;
-  }
+    if (canvasElement) {
+      canvasElement.remove();
+      canvasElement = null;
+    }
 
-  if (!isDetecting) {
-    console.warn("⚠️ 検知が停止中です");
-    return;
+    console.log("📷 Camera stopped");
   }
 
-  try {
-    console.log("🔍 顔検出実行開始...");
-    console.log("   video要素:", video);
-    console.log("   video.videoWidth:", video.videoWidth);
-    console.log("   video.videoHeight:", video.videoHeight);
-    console.log("   video.readyState:", video.readyState);
+  // ============================================
+  // 顔検出
+  // ============================================
 
-    // videoが準備できているか確認
-    if (video.readyState < 2) {
-      console.warn(
-        "⚠️ ビデオがまだ準備できていません (readyState:",
-        video.readyState,
-        ")"
-      );
+  async function detectFace() {
+    if (!videoElement || !modelsLoaded) {
+      return null;
+    }
+
+    try {
+      const detections = await faceapi
+        .detectSingleFace(videoElement, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks();
+
+      return detections;
+    } catch (error) {
+      console.error("❌ Face detection error:", error);
+      return null;
+    }
+  }
+
+  // ============================================
+  // 目の開閉検知（EAR - Eye Aspect Ratio）
+  // ============================================
+
+  function calculateEAR(eye) {
+    // Eye Aspect Ratio計算
+    const vertical1 = euclideanDistance(eye[1], eye[5]);
+    const vertical2 = euclideanDistance(eye[2], eye[4]);
+    const horizontal = euclideanDistance(eye[0], eye[3]);
+
+    const ear = (vertical1 + vertical2) / (2.0 * horizontal);
+    return ear;
+  }
+
+  function euclideanDistance(point1, point2) {
+    const dx = point1.x - point2.x;
+    const dy = point1.y - point2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function areEyesClosed(landmarks) {
+    // 左目と右目のランドマーク
+    const leftEye = [
+      landmarks[36],
+      landmarks[37],
+      landmarks[38],
+      landmarks[39],
+      landmarks[40],
+      landmarks[41],
+    ];
+
+    const rightEye = [
+      landmarks[42],
+      landmarks[43],
+      landmarks[44],
+      landmarks[45],
+      landmarks[46],
+      landmarks[47],
+    ];
+
+    // EAR計算
+    const leftEAR = calculateEAR(leftEye);
+    const rightEAR = calculateEAR(rightEye);
+    const avgEAR = (leftEAR + rightEAR) / 2.0;
+
+    // EARが0.2以下の場合、目を閉じていると判定
+    const threshold = 0.2;
+    const closed = avgEAR < threshold;
+
+    if (closed) {
+      console.log(`👁️ Eyes closed (EAR: ${avgEAR.toFixed(3)})`);
+    }
+
+    return closed;
+  }
+
+  // ============================================
+  // 頭の角度検知（Pitch角度）
+  // ============================================
+
+  function calculateHeadPitch(landmarks) {
+    // 鼻の先端、顎の位置から頭の角度を推定
+    const noseTip = landmarks[30];
+    const chin = landmarks[8];
+    const foreheadApprox = {
+      x: noseTip.x,
+      y: noseTip.y - 80, // 概算
+    };
+
+    // 角度計算（縦方向）
+    const dy = chin.y - foreheadApprox.y;
+    const dx = chin.x - foreheadApprox.x;
+
+    // Pitch角度（度）
+    const pitch = Math.atan2(dy, Math.abs(dx)) * (180 / Math.PI);
+
+    return Math.abs(pitch);
+  }
+
+  function isHeadDown(landmarks, threshold) {
+    const pitch = calculateHeadPitch(landmarks);
+    const down = pitch > threshold;
+
+    if (down) {
+      console.log(`🙇 Head down (Pitch: ${pitch.toFixed(1)}°)`);
+    }
+
+    return down;
+  }
+
+  // ============================================
+  // 検出ループ
+  // ============================================
+
+  async function runDetectionLoop() {
+    if (!isDetecting || !videoElement) {
       return;
     }
 
-    // face-api.jsで顔検出 + ランドマーク検出
-    console.log("   face-api.js検出開始...");
-    const detections = await faceapi
-      .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks();
+    const detections = await detectFace();
 
-    console.log("   検出結果:", detections);
-    console.log("   検出数:", detections ? detections.length : 0);
+    if (detections) {
+      faceDetected = true;
+      const landmarks = detections.landmarks.positions;
 
-    // グローバル変数を更新
-    faceDetected = detections && detections.length > 0;
-    let eyesClosed = false;
-    let headDown = false;
+      // 目の開閉チェック
+      const currentlyEyesClosed = areEyesClosed(landmarks);
 
-    if (faceDetected && detections[0].landmarks) {
-      const landmarks = detections[0].landmarks;
-
-      // 1. 目の開閉検出（EAR: Eye Aspect Ratio）
-      const leftEye = landmarks.getLeftEye();
-      const rightEye = landmarks.getRightEye();
-
-      const leftEAR = calculateEAR(leftEye);
-      const rightEAR = calculateEAR(rightEye);
-      const avgEAR = (leftEAR + rightEAR) / 2;
-
-      // EARが0.2以下なら目を閉じていると判定
-      eyesClosed = avgEAR < 0.2;
-
-      // 2. 頭の角度検出（鼻と顎の位置関係）
-      const nose = landmarks.getNose();
-      const jawline = landmarks.getJawOutline();
-
-      // 鼻の先端と顎の中央のY座標差
-      const noseY = nose[3].y; // 鼻の先端
-      const chinY = jawline[8].y; // 顎の中央
-
-      // 顎が鼻より大きく下にある場合、頭が下を向いている
-      const headAngle = chinY - noseY;
-      headDown = headAngle > 70; // しきい値：70ピクセル以上なら下向き（緩和）
-
-      console.log(
-        "👁️ 目の開閉度 (EAR):",
-        avgEAR.toFixed(3),
-        eyesClosed ? "閉じている" : "開いている"
-      );
-      console.log(
-        "📐 頭の角度:",
-        headAngle.toFixed(1),
-        headDown ? "下向き" : "正面",
-        `(閾値: 70)`
-      );
-    }
-
-    // 総合判定：顔未検出 OR 目を閉じている OR 頭が下向き
-    const isSleeping = !faceDetected || eyesClosed || headDown;
-
-    // 未検出/居眠り時間を計算
-    if (isSleeping) {
-      // 初回検出時に開始時刻を記録
-      if (!window.lastDetectedTime) {
-        window.lastDetectedTime = Date.now();
-      }
-      const currentTime = Date.now();
-      const elapsedSeconds = Math.floor(
-        (currentTime - window.lastDetectedTime) / 1000
-      );
-
-      let statusMessage = "";
-      if (!faceDetected) {
-        statusMessage = "顔未検出";
-      } else if (eyesClosed) {
-        statusMessage = "目を閉じている";
-      } else if (headDown) {
-        statusMessage = "頭が下向き";
-      }
-
-      updateStatus(false, elapsedSeconds, statusMessage);
-    } else {
-      // 正常状態：時刻をリセット
-      window.lastDetectedTime = Date.now();
-      updateStatus(true);
-    }
-
-    // Background Scriptに結果を送信（エラーハンドリング強化）
-    try {
-      await chrome.runtime.sendMessage({
-        type: "FACE_DETECTED",
-        detected: !isSleeping,
-        eyesClosed: eyesClosed,
-        headDown: headDown,
-      });
-    } catch (sendError) {
-      // Extension context invalidated エラーを無視
-      if (sendError.message.includes("Extension context invalidated")) {
-        console.warn(
-          "⚠️ 拡張機能コンテキストが無効化されました。検知を停止します。"
-        );
-        stopDetection();
+      if (currentlyEyesClosed) {
+        if (!eyesClosed) {
+          eyesClosed = true;
+          eyesClosedStartTime = Date.now();
+          notifyPopup("EYES_CLOSED");
+        } else {
+          // 閾値時間を超えたか確認
+          const duration = (Date.now() - eyesClosedStartTime) / 1000;
+          if (duration >= settings.eyeClosedThreshold) {
+            handleDrowsiness("eyes_closed", duration);
+          }
+        }
       } else {
-        console.warn("⚠️ Background Scriptへの送信エラー:", sendError.message);
+        if (eyesClosed) {
+          eyesClosed = false;
+          eyesClosedStartTime = null;
+          notifyPopup("FOCUSED");
+        }
+      }
+
+      // 頭の角度チェック
+      const currentlyHeadDown = isHeadDown(
+        landmarks,
+        settings.headDownThreshold
+      );
+
+      if (currentlyHeadDown) {
+        if (!headDown) {
+          headDown = true;
+          headDownStartTime = Date.now();
+          notifyPopup("HEAD_DOWN");
+        } else {
+          // 閾値時間を超えたか確認（1秒以上）
+          const duration = (Date.now() - headDownStartTime) / 1000;
+          if (duration >= 1.0) {
+            handleDrowsiness("head_down", duration);
+          }
+        }
+      } else {
+        if (headDown) {
+          headDown = false;
+          headDownStartTime = null;
+          if (!eyesClosed) {
+            notifyPopup("FOCUSED");
+          }
+        }
+      }
+
+      // 顔検出の描画
+      drawDetections(detections);
+
+      // 正常状態の通知
+      if (!eyesClosed && !headDown) {
+        notifyPopup("FACE_DETECTED");
+      }
+    } else {
+      // 顔が検出されない
+      if (faceDetected) {
+        faceDetected = false;
+        eyesClosed = false;
+        headDown = false;
+        eyesClosedStartTime = null;
+        headDownStartTime = null;
+        notifyPopup("FACE_LOST");
+      }
+
+      // Canvasをクリア
+      if (canvasElement) {
+        const ctx = canvasElement.getContext("2d");
+        ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
       }
     }
-  } catch (err) {
-    console.error("顔検出エラー:", err);
+  }
 
-    // Extension context invalidated の場合は検知を停止
-    if (err.message && err.message.includes("Extension context invalidated")) {
+  // ============================================
+  // 検出結果の描画
+  // ============================================
+
+  function drawDetections(detections) {
+    if (!canvasElement) return;
+
+    const ctx = canvasElement.getContext("2d");
+    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+    // 顔の枠を描画
+    const box = detections.detection.box;
+    ctx.strokeStyle =
+      faceDetected && !eyesClosed && !headDown ? "#28a745" : "#dc3545";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+    // ランドマークを描画
+    const landmarks = detections.landmarks.positions;
+    ctx.fillStyle = "#667eea";
+    landmarks.forEach((point) => {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+      ctx.fill();
+    });
+  }
+
+  // ============================================
+  // 居眠り検知ハンドラー
+  // ============================================
+
+  async function handleDrowsiness(type, duration) {
+    console.log(
+      `😴 Drowsiness detected! Type: ${type}, Duration: ${duration.toFixed(1)}s`
+    );
+
+    // popupに通知
+    notifyPopup("DROWSINESS_DETECTED");
+
+    // サーバーに通知
+    if (socket && socket.connected) {
+      socket.emit("drowsiness_detected", {
+        sessionId: settings.sessionId,
+        anonymousId: settings.anonymousId,
+        type: type,
+        duration: duration,
+        timestamp: Date.now(),
+      });
+    }
+
+    // アラート実行
+    await executeAlert();
+  }
+
+  // ============================================
+  // アラート実行
+  // ============================================
+
+  async function executeAlert() {
+    switch (settings.alertMode) {
+      case "sound":
+        await playSoundAlert();
+        break;
+
+      case "wallpaper":
+        await changeWallpaper();
+        break;
+
+      case "smartphone":
+        await triggerSmartphoneCapture();
+        break;
+    }
+  }
+
+  // 音声アラート
+  async function playSoundAlert() {
+    try {
+      const audio = new Audio();
+      audio.volume = settings.volume / 100;
+
+      // シンプルなビープ音を生成
+      const audioContext = new (window.AudioContext ||
+        window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800; // 800Hz
+      gainNode.gain.value = settings.volume / 100;
+
+      oscillator.start();
+
+      // 1秒後に停止
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 1000);
+
+      console.log("🔊 Sound alert played");
+    } catch (error) {
+      console.error("❌ Sound alert error:", error);
+    }
+  }
+
+  // 壁紙変更
+  async function changeWallpaper() {
+    try {
+      // ページ全体に警告オーバーレイを表示
+      const overlay = document.createElement("div");
+      overlay.id = "classguard-wallpaper-overlay";
+      overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+        z-index: 999998;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        animation: fadeIn 0.5s ease;
+      `;
+
+      overlay.innerHTML = `
+        <div style="text-align: center;">
+          <div style="font-size: 120px; margin-bottom: 20px;">😴</div>
+          <div style="font-size: 48px; font-weight: 700; margin-bottom: 16px;">居眠り検出！</div>
+          <div style="font-size: 24px; opacity: 0.9;">集中してください</div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      // 5秒後に自動削除
+      setTimeout(() => {
+        overlay.style.animation = "fadeOut 0.5s ease";
+        setTimeout(() => overlay.remove(), 500);
+      }, 5000);
+
+      console.log("🖼️ Wallpaper changed");
+    } catch (error) {
+      console.error("❌ Wallpaper change error:", error);
+    }
+  }
+
+  // スマホ撮影トリガー
+  async function triggerSmartphoneCapture() {
+    if (socket && socket.connected) {
+      socket.emit("trigger_smartphone_capture", {
+        sessionId: settings.sessionId,
+        anonymousId: settings.anonymousId,
+        timestamp: Date.now(),
+      });
+
+      console.log("📱 Smartphone capture triggered");
+    } else {
       console.warn(
-        "⚠️ 拡張機能コンテキストが無効化されました。検知を停止します。"
-      );
-      stopDetection();
-    }
-  }
-}
-
-// 検知を開始
-async function startDetection() {
-  console.log("========================================");
-  console.log("🔍 顔検出開始プロセス");
-  console.log("========================================");
-
-  if (isDetecting) {
-    console.log("⚠️ 既に検知中です");
-    return;
-  }
-
-  console.log("👁️ ステップ1: 顔検出を開始します...");
-
-  // ステータスインジケーターを作成
-  console.log("👁️ ステップ2: ステータスインジケーター作成");
-  createStatusIndicator();
-  console.log("✅ ステータスインジケーター作成完了");
-
-  // face-api.jsを読み込み
-  try {
-    console.log("👁️ ステップ3: face-api.js確認開始");
-    await loadFaceAPI();
-    console.log("✅ face-api.js 確認完了");
-
-    // face-api.jsが正しく読み込まれたか確認
-    if (typeof faceapi === "undefined") {
-      throw new Error(
-        "face-api.jsオブジェクトが見つかりません。拡張機能を再読み込みしてください。"
+        "⚠️ Socket not connected, cannot trigger smartphone capture"
       );
     }
-    console.log("✅ face-api.js オブジェクト確認OK");
+  }
 
-    // モデルを読み込み（顔検出 + ランドマーク検出）
-    console.log("👁️ ステップ4: モデル読み込み開始");
+  // ============================================
+  // Socket.io接続
+  // ============================================
 
-    // 拡張機能のmodelsフォルダから読み込み
-    const modelPath = chrome.runtime.getURL("models");
-    console.log("   モデルパス:", modelPath);
+  async function connectToServer() {
+    if (!settings.dashboardUrl || !settings.sessionId) {
+      console.error("❌ Missing dashboardUrl or sessionId");
+      return false;
+    }
 
     try {
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(modelPath),
-        faceapi.nets.faceLandmark68Net.loadFromUri(modelPath),
-      ]);
-      console.log("✅ 顔検出モデル読み込み完了");
-      console.log("✅ ランドマーク検出モデル読み込み完了");
-    } catch (modelErr) {
-      console.error("❌ モデル読み込みエラー:", modelErr);
-      throw new Error(
-        "顔検出モデルの読み込みに失敗しました: " + modelErr.message
-      );
-    }
-  } catch (err) {
-    console.error("❌ face-api.js初期化エラー:", err);
-    console.error("❌ エラー名:", err.name);
-    console.error("❌ エラーメッセージ:", err.message);
-    console.error("❌ エラースタック:", err.stack);
+      console.log("🔌 Connecting to server:", settings.dashboardUrl);
 
-    alert(
-      "顔検出システムの初期化に失敗しました\n\n" +
-        "エラー: " +
-        (err.message || "不明なエラー") +
-        "\n\n" +
-        "対処法:\n" +
-        "1. 拡張機能を再読み込みしてください（chrome://extensions/）\n" +
-        "2. ページを再読み込みしてください\n" +
-        "3. ブラウザを再起動してみてください"
-    );
-    return;
-  }
-
-  // カメラを初期化
-  console.log("👁️ ステップ5: カメラ初期化開始");
-  const cameraReady = await initCamera();
-  if (!cameraReady) {
-    console.error("❌ カメラ初期化失敗");
-    return;
-  }
-  console.log("✅ カメラ初期化完了");
-
-  // 検知開始
-  console.log("👁️ ステップ6: 検知状態の設定");
-  isDetecting = true;
-  window.lastDetectedTime = Date.now();
-  console.log("   isDetecting:", isDetecting);
-  console.log("   lastDetectedTime:", window.lastDetectedTime);
-
-  // 1秒ごとに顔検出を実行
-  console.log("👁️ ステップ7: 顔検出インターバル設定");
-  detectionInterval = setInterval(detectFace, 1000);
-  console.log("   detectionInterval ID:", detectionInterval);
-
-  console.log("========================================");
-  console.log("✅ 顔検出開始完了！");
-  console.log("========================================");
-  updateStatus(true);
-
-  // 初回顔検出をすぐに実行
-  console.log("👁️ 初回顔検出を実行");
-  detectFace();
-}
-
-// 検知を停止
-function stopDetection() {
-  if (!isDetecting) return;
-
-  console.log("⏹️ 顔検出を停止");
-
-  isDetecting = false;
-
-  // インターバルをクリア
-  if (detectionInterval) {
-    clearInterval(detectionInterval);
-    detectionInterval = null;
-  }
-
-  // カメラストリームを停止
-  if (video && video.srcObject) {
-    video.srcObject.getTracks().forEach((track) => track.stop());
-    video.remove();
-    video = null;
-  }
-
-  // ステータスを待機中に
-  setIdleStatus();
-}
-
-// 音声アラートを再生
-function playSound(volume = 70) {
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  const oscillator = audioContext.createOscillator();
-  const gainNode = audioContext.createGain();
-
-  oscillator.connect(gainNode);
-  gainNode.connect(audioContext.destination);
-
-  oscillator.frequency.value = 880; // A5音
-  oscillator.type = "sine";
-  gainNode.gain.value = volume / 100;
-
-  oscillator.start();
-  oscillator.stop(audioContext.currentTime + 0.5);
-}
-
-// Background Scriptからのメッセージを受信
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("Content Script メッセージ受信:", message);
-
-  switch (message.type) {
-    case "START_DETECTION":
-      startDetection();
-      sendResponse({ success: true });
-      break;
-
-    case "STOP_DETECTION":
-      stopDetection();
-      sendResponse({ success: true });
-      break;
-
-    case "PLAY_SOUND":
-      playSound(message.volume || 70);
-      sendResponse({ success: true });
-      break;
-
-    case "DETECT_FACE":
-      console.log("🔍 顔検出リクエスト受信");
-
-      // 検知が開始されていない場合は自動的に開始
-      if (!isDetecting) {
-        console.log("⚠️ 検知が停止中のため、自動的に開始します");
-        (async () => {
-          await startDetection();
-          // 検知開始後、少し待ってから検出実行
-          setTimeout(async () => {
-            await detectFace();
-            console.log("   検出結果:", faceDetected);
-            sendResponse({ faceDetected: faceDetected });
-          }, 2000); // 2秒待つ（カメラ初期化とモデル読み込み）
-        })();
-        return true; // 非同期レスポンス
+      // Socket.ioスクリプトを動的に読み込み
+      if (!window.io) {
+        await loadScript("https://cdn.socket.io/4.5.4/socket.io.min.js");
       }
 
-      // 検知中の場合は即座に検出実行
-      console.log("✅ 検知中 - 顔検出を実行");
-      (async () => {
-        await detectFace();
-        console.log("   検出結果:", faceDetected);
-        sendResponse({ faceDetected: faceDetected });
-      })();
-      return true; // 非同期レスポンスを示す
-      break;
-  }
-
-  return true;
-});
-
-// ページ読み込み完了時
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    console.log("✅ ClassGuard Content Script 読み込み完了");
-    checkForSessionId();
-  });
-} else {
-  console.log("✅ ClassGuard Content Script 読み込み完了");
-  checkForSessionId();
-}
-
-// URLからセッションIDを自動検出
-function checkForSessionId() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const sessionId = urlParams.get("session");
-
-  if (sessionId) {
-    console.log("📋 URLからセッションID検出:", sessionId);
-
-    // Background Scriptに送信
-    chrome.runtime
-      .sendMessage({
-        type: "SET_SESSION_ID",
-        sessionId: sessionId,
-      })
-      .then(() => {
-        console.log("✅ セッションID設定完了");
-
-        // 通知を表示
-        showNotification(
-          "セッションに参加しました",
-          `セッションID: ${sessionId.substring(0, 20)}...`
-        );
-      })
-      .catch((err) => {
-        console.error("セッションID設定エラー:", err);
+      socket = io(settings.dashboardUrl, {
+        query: {
+          type: "pc",
+          sessionId: settings.sessionId,
+          anonymousId: settings.anonymousId,
+        },
+        transports: ["websocket", "polling"],
       });
-  }
-}
 
-// 通知を表示
-function showNotification(title, message) {
-  // 画面上部に通知を表示
-  const notification = document.createElement("div");
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999999;
-    background: rgba(52, 199, 89, 0.95);
-    color: white;
-    padding: 16px 24px;
-    border-radius: 12px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    animation: slideDown 0.3s ease-out;
-  `;
+      socket.on("connect", () => {
+        console.log("✅ Connected to server");
+        notifyPopup("CONNECTION_ESTABLISHED", {
+          sessionId: settings.sessionId,
+        });
+      });
 
-  notification.innerHTML = `
-    <div style="font-weight: 600; margin-bottom: 4px;">${title}</div>
-    <div style="font-size: 12px; opacity: 0.9;">${message}</div>
-  `;
+      socket.on("disconnect", () => {
+        console.log("❌ Disconnected from server");
+        notifyPopup("CONNECTION_LOST");
+      });
 
-  document.body.appendChild(notification);
+      socket.on("error", (error) => {
+        console.error("❌ Socket error:", error);
+      });
 
-  // 3秒後に削除
-  setTimeout(() => {
-    notification.style.animation = "slideUp 0.3s ease-out";
-    setTimeout(() => {
-      notification.remove();
-    }, 300);
-  }, 3000);
-}
-
-// アニメーション用CSS
-const style = document.createElement("style");
-style.textContent = `
-  @keyframes slideDown {
-    from {
-      transform: translate(-50%, -100px);
-      opacity: 0;
-    }
-    to {
-      transform: translate(-50%, 0);
-      opacity: 1;
+      return true;
+    } catch (error) {
+      console.error("❌ Connection error:", error);
+      return false;
     }
   }
-  
-  @keyframes slideUp {
-    from {
-      transform: translate(-50%, 0);
-      opacity: 1;
-    }
-    to {
-      transform: translate(-50%, -100px);
-      opacity: 0;
-    }
+
+  // スクリプト動的読み込み
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
   }
-`;
-document.head.appendChild(style);
+
+  // ============================================
+  // Popup通知
+  // ============================================
+
+  function notifyPopup(action, data = {}) {
+    chrome.runtime.sendMessage(
+      {
+        action: action,
+        ...data,
+      },
+      (response) => {
+        // エラーを無視（popupが開いていない場合）
+        if (chrome.runtime.lastError) {
+          return;
+        }
+      }
+    );
+  }
+
+  // ============================================
+  // 検知開始
+  // ============================================
+
+  async function startDetection(newSettings) {
+    if (isDetecting) {
+      console.log("⚠️ Detection already running");
+      return { success: false, message: "Already detecting" };
+    }
+
+    // 設定を更新
+    Object.assign(settings, newSettings);
+
+    console.log("🚀 Starting detection with settings:", settings);
+
+    // モデル読み込み
+    const modelsLoaded = await loadFaceApiModels();
+    if (!modelsLoaded) {
+      return { success: false, message: "Failed to load models" };
+    }
+
+    // カメラ起動
+    const cameraStarted = await startCamera();
+    if (!cameraStarted) {
+      return { success: false, message: "Failed to start camera" };
+    }
+
+    // サーバー接続
+    await connectToServer();
+
+    // 検出ループ開始
+    isDetecting = true;
+    detectionInterval = setInterval(
+      runDetectionLoop,
+      settings.detectionInterval
+    );
+
+    console.log("✅ Detection started");
+    return { success: true };
+  }
+
+  // ============================================
+  // 検知停止
+  // ============================================
+
+  function stopDetection() {
+    if (!isDetecting) {
+      console.log("⚠️ Detection not running");
+      return { success: false, message: "Not detecting" };
+    }
+
+    // 検出ループ停止
+    if (detectionInterval) {
+      clearInterval(detectionInterval);
+      detectionInterval = null;
+    }
+
+    // カメラ停止
+    stopCamera();
+
+    // Socket切断
+    if (socket) {
+      socket.disconnect();
+      socket = null;
+    }
+
+    // 状態リセット
+    isDetecting = false;
+    faceDetected = false;
+    eyesClosed = false;
+    headDown = false;
+    eyesClosedStartTime = null;
+    headDownStartTime = null;
+
+    console.log("⏹️ Detection stopped");
+    return { success: true };
+  }
+
+  // ============================================
+  // メッセージリスナー（popupからの命令）
+  // ============================================
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log("📨 Message received:", message);
+
+    switch (message.action) {
+      case "START_DETECTION":
+        startDetection(message.settings).then(sendResponse);
+        return true; // 非同期レスポンス
+
+      case "STOP_DETECTION":
+        sendResponse(stopDetection());
+        break;
+
+      case "CHECK_STATUS":
+        sendResponse({
+          isDetecting: isDetecting,
+          faceDetected: faceDetected,
+          eyesClosed: eyesClosed,
+          headDown: headDown,
+        });
+        break;
+
+      default:
+        sendResponse({ success: false, message: "Unknown action" });
+    }
+
+    return true;
+  });
+
+  console.log("✅ ClassGuard Content Script loaded - 完全版");
+})();
