@@ -4,19 +4,8 @@
   "version": "2.0.0",
   "description": "リアルタイム顔認識で授業中の居眠りを自動検知。音声アラート、壁紙変更、スマホ撮影の3つのモードで学習をサポート。",
 
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
-
   "action": {
     "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    },
     "default_title": "ClassGuard設定"
   },
 
@@ -28,7 +17,7 @@
     {
       "matches": ["<all_urls>"],
       "js": ["face-api.js", "content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
 

@@ -185,25 +185,6 @@ export default function TeacherDashboard() {
                 <p style={styles.helpText}>このURLを学生に共有してください</p>
               </div>
 
-              {/* QRコード */}
-              {qrCodeUrl && (
-                <div style={styles.section}>
-                  <label style={styles.label}>📱 QRコード</label>
-                  <div style={styles.qrContainer}>
-                    <img src={qrCodeUrl} alt="QR Code" style={styles.qrImage} />
-                  </div>
-                  <p style={styles.helpText}>
-                    スマホでスキャンして参加できます
-                  </p>
-                </div>
-              )}
-
-              {/* セッションID */}
-              <div style={styles.section}>
-                <label style={styles.label}>🔑 セッションID</label>
-                <div style={styles.sessionIdBox}>{sessionId}</div>
-              </div>
-
               <button onClick={resetSession} style={styles.buttonSecondary}>
                 新しい授業を開始
               </button>

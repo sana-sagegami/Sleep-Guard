@@ -1,38 +1,43 @@
 // ============================================
-// ClassGuard Content Script - 完全版
+// ClassGuard Content Script - Pusher版
 // 顔認識・居眠り検知システム
 // ============================================
 
 (async function () {
   "use strict";
 
-  console.log("🚀 ClassGuard Content Script 起動");
+  console.log("🚀 ClassGuard Content Script 起動 (Pusher版)");
 
   // ============================================
   // グローバル変数
   // ============================================
 
-  let socket = null;
+  let pusher = null;
+  let channel = null;
   let videoElement = null;
   let canvasElement = null;
   let detectionInterval = null;
+  let statusUpdateInterval = null;
   let isDetecting = false;
   let faceDetected = false;
   let eyesClosed = false;
   let headDown = false;
   let eyesClosedStartTime = null;
   let headDownStartTime = null;
+  let lastStatusSentTime = 0;
 
   // 設定
   let settings = {
     dashboardUrl: "",
     sessionId: "",
     anonymousId: "",
+    studentName: "",
     alertMode: "sound",
     volume: 70,
     eyeClosedThreshold: 3.0,
     headDownThreshold: 25,
     detectionInterval: 500,
+    statusUpdateInterval: 2000, // 2秒ごとにステータス送信
   };
 
   // モデル読み込み状態
@@ -208,7 +213,6 @@
   // ============================================
 
   function calculateEAR(eye) {
-    // Eye Aspect Ratio計算
     const vertical1 = euclideanDistance(eye[1], eye[5]);
     const vertical2 = euclideanDistance(eye[2], eye[4]);
     const horizontal = euclideanDistance(eye[0], eye[3]);
@@ -224,7 +228,6 @@
   }
 
   function areEyesClosed(landmarks) {
-    // 左目と右目のランドマーク
     const leftEye = [
       landmarks[36],
       landmarks[37],
@@ -243,12 +246,10 @@
       landmarks[47],
     ];
 
-    // EAR計算
     const leftEAR = calculateEAR(leftEye);
     const rightEAR = calculateEAR(rightEye);
     const avgEAR = (leftEAR + rightEAR) / 2.0;
 
-    // EARが0.2以下の場合、目を閉じていると判定
     const threshold = 0.2;
     const closed = avgEAR < threshold;
 
@@ -264,19 +265,16 @@
   // ============================================
 
   function calculateHeadPitch(landmarks) {
-    // 鼻の先端、顎の位置から頭の角度を推定
     const noseTip = landmarks[30];
     const chin = landmarks[8];
     const foreheadApprox = {
       x: noseTip.x,
-      y: noseTip.y - 80, // 概算
+      y: noseTip.y - 80,
     };
 
-    // 角度計算（縦方向）
     const dy = chin.y - foreheadApprox.y;
     const dx = chin.x - foreheadApprox.x;
 
-    // Pitch角度（度）
     const pitch = Math.atan2(dy, Math.abs(dx)) * (180 / Math.PI);
 
     return Math.abs(pitch);
@@ -317,7 +315,6 @@
           eyesClosedStartTime = Date.now();
           notifyPopup("EYES_CLOSED");
         } else {
-          // 閾値時間を超えたか確認
           const duration = (Date.now() - eyesClosedStartTime) / 1000;
           if (duration >= settings.eyeClosedThreshold) {
             handleDrowsiness("eyes_closed", duration);
@@ -343,7 +340,6 @@
           headDownStartTime = Date.now();
           notifyPopup("HEAD_DOWN");
         } else {
-          // 閾値時間を超えたか確認（1秒以上）
           const duration = (Date.now() - headDownStartTime) / 1000;
           if (duration >= 1.0) {
             handleDrowsiness("head_down", duration);
@@ -395,14 +391,12 @@
     const ctx = canvasElement.getContext("2d");
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-    // 顔の枠を描画
     const box = detections.detection.box;
     ctx.strokeStyle =
       faceDetected && !eyesClosed && !headDown ? "#28a745" : "#dc3545";
     ctx.lineWidth = 3;
     ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-    // ランドマークを描画
     const landmarks = detections.landmarks.positions;
     ctx.fillStyle = "#667eea";
     landmarks.forEach((point) => {
@@ -421,22 +415,102 @@
       `😴 Drowsiness detected! Type: ${type}, Duration: ${duration.toFixed(1)}s`
     );
 
-    // popupに通知
     notifyPopup("DROWSINESS_DETECTED");
 
-    // サーバーに通知
-    if (socket && socket.connected) {
-      socket.emit("drowsiness_detected", {
-        sessionId: settings.sessionId,
-        anonymousId: settings.anonymousId,
-        type: type,
-        duration: duration,
-        timestamp: Date.now(),
-      });
-    }
+    // サーバーに送信
+    await sendStatusToServer("sleeping", true, true, duration);
 
     // アラート実行
     await executeAlert();
+  }
+
+  // ============================================
+  // ステータスをサーバーに送信（Pusher経由）
+  // ============================================
+
+  async function sendStatusToServer(
+    status,
+    eyesClosed,
+    headDown,
+    sleepDuration = 0
+  ) {
+    if (!settings.dashboardUrl || !settings.sessionId) {
+      console.error("❌ Missing configuration");
+      return;
+    }
+
+    // レート制限: 2秒に1回まで
+    const now = Date.now();
+    if (now - lastStatusSentTime < settings.statusUpdateInterval) {
+      return;
+    }
+    lastStatusSentTime = now;
+
+    try {
+      const url = `${settings.dashboardUrl}/api/update-status`;
+
+      const data = {
+        sessionId: settings.sessionId,
+        student: {
+          id: settings.anonymousId,
+          name: settings.studentName || "匿名",
+          status: status,
+          eyesClosed: eyesClosed,
+          headDown: headDown,
+          sleepDuration: sleepDuration,
+          lastUpdate: Date.now(),
+        },
+      };
+
+      console.log("📤 Sending status:", status);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("✅ Status sent successfully");
+      } else {
+        const errorText = await response.text();
+        console.error("❌ Failed to send status:", response.status, errorText);
+      }
+    } catch (error) {
+      console.error("❌ Status send error:", error);
+    }
+  }
+
+  // ============================================
+  // 定期的なステータス送信
+  // ============================================
+
+  function startStatusUpdates() {
+    // 2秒ごとに現在のステータスを送信
+    statusUpdateInterval = setInterval(() => {
+      if (!isDetecting) return;
+
+      let status = "active";
+      if (eyesClosed && headDown) {
+        status = "sleeping";
+      } else if (eyesClosed || headDown) {
+        status = "drowsy";
+      }
+
+      const duration = eyesClosedStartTime
+        ? (Date.now() - eyesClosedStartTime) / 1000
+        : 0;
+
+      sendStatusToServer(status, eyesClosed, headDown, duration);
+    }, settings.statusUpdateInterval);
+  }
+
+  function stopStatusUpdates() {
+    if (statusUpdateInterval) {
+      clearInterval(statusUpdateInterval);
+      statusUpdateInterval = null;
+    }
   }
 
   // ============================================
@@ -462,10 +536,6 @@
   // 音声アラート
   async function playSoundAlert() {
     try {
-      const audio = new Audio();
-      audio.volume = settings.volume / 100;
-
-      // シンプルなビープ音を生成
       const audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
@@ -474,12 +544,11 @@
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.frequency.value = 800; // 800Hz
+      oscillator.frequency.value = 800;
       gainNode.gain.value = settings.volume / 100;
 
       oscillator.start();
 
-      // 1秒後に停止
       setTimeout(() => {
         oscillator.stop();
         audioContext.close();
@@ -494,7 +563,6 @@
   // 壁紙変更
   async function changeWallpaper() {
     try {
-      // ページ全体に警告オーバーレイを表示
       const overlay = document.createElement("div");
       overlay.id = "classguard-wallpaper-overlay";
       overlay.style.cssText = `
@@ -524,7 +592,6 @@
 
       document.body.appendChild(overlay);
 
-      // 5秒後に自動削除
       setTimeout(() => {
         overlay.style.animation = "fadeOut 0.5s ease";
         setTimeout(() => overlay.remove(), 500);
@@ -538,68 +605,99 @@
 
   // スマホ撮影トリガー
   async function triggerSmartphoneCapture() {
-    if (socket && socket.connected) {
-      socket.emit("trigger_smartphone_capture", {
-        sessionId: settings.sessionId,
-        anonymousId: settings.anonymousId,
-        timestamp: Date.now(),
+    try {
+      const url = `${settings.dashboardUrl}/api/trigger-capture`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: settings.sessionId,
+          studentId: settings.anonymousId,
+          timestamp: Date.now(),
+        }),
       });
 
-      console.log("📱 Smartphone capture triggered");
-    } else {
-      console.warn(
-        "⚠️ Socket not connected, cannot trigger smartphone capture"
-      );
+      if (response.ok) {
+        console.log("📱 Smartphone capture triggered");
+      } else {
+        console.error("❌ Failed to trigger capture");
+      }
+    } catch (error) {
+      console.error("❌ Trigger capture error:", error);
     }
   }
 
   // ============================================
-  // Socket.io接続
+  // Pusher接続（リアルタイム更新受信用）
   // ============================================
 
-  async function connectToServer() {
-    if (!settings.dashboardUrl || !settings.sessionId) {
-      console.error("❌ Missing dashboardUrl or sessionId");
-      return false;
-    }
-
+  async function connectToPusher() {
     try {
-      console.log("🔌 Connecting to server:", settings.dashboardUrl);
+      console.log("🔌 Connecting to Pusher...");
 
-      // Socket.ioスクリプトを動的に読み込み
-      if (!window.io) {
-        await loadScript("https://cdn.socket.io/4.5.4/socket.io.min.js");
+      // Pusherスクリプトを動的に読み込み
+      if (!window.Pusher) {
+        await loadScript("https://js.pusher.com/8.2.0/pusher.min.js");
       }
 
-      socket = io(settings.dashboardUrl, {
-        query: {
-          type: "pc",
-          sessionId: settings.sessionId,
-          anonymousId: settings.anonymousId,
-        },
-        transports: ["websocket", "polling"],
+      // Pusher APIキーはサーバーから取得
+      const response = await fetch(
+        `${settings.dashboardUrl}/api/pusher-config`
+      );
+      const config = await response.json();
+
+      pusher = new Pusher(config.key, {
+        cluster: config.cluster,
       });
 
-      socket.on("connect", () => {
-        console.log("✅ Connected to server");
+      // セッション専用チャンネルに接続
+      channel = pusher.subscribe(`session-${settings.sessionId}`);
+
+      channel.bind("pusher:subscription_succeeded", () => {
+        console.log("✅ Connected to Pusher channel");
         notifyPopup("CONNECTION_ESTABLISHED", {
           sessionId: settings.sessionId,
         });
       });
 
-      socket.on("disconnect", () => {
-        console.log("❌ Disconnected from server");
-        notifyPopup("CONNECTION_LOST");
-      });
-
-      socket.on("error", (error) => {
-        console.error("❌ Socket error:", error);
+      // サーバーからのコマンドを受信
+      channel.bind("teacher-command", (data) => {
+        console.log("📨 Received command:", data);
+        handleTeacherCommand(data);
       });
 
       return true;
     } catch (error) {
-      console.error("❌ Connection error:", error);
+      console.error("❌ Pusher connection error:", error);
       return false;
+    }
+  }
+
+  function disconnectFromPusher() {
+    if (channel) {
+      channel.unbind_all();
+      pusher.unsubscribe(`session-${settings.sessionId}`);
+      channel = null;
+    }
+
+    if (pusher) {
+      pusher.disconnect();
+      pusher = null;
+    }
+
+    console.log("🔌 Disconnected from Pusher");
+  }
+
+  // 先生からのコマンド処理
+  function handleTeacherCommand(data) {
+    switch (data.command) {
+      case "alert":
+        executeAlert();
+        break;
+      case "stop":
+        stopDetection();
+        break;
     }
   }
 
@@ -625,7 +723,6 @@
         ...data,
       },
       (response) => {
-        // エラーを無視（popupが開いていない場合）
         if (chrome.runtime.lastError) {
           return;
         }
@@ -643,14 +740,13 @@
       return { success: false, message: "Already detecting" };
     }
 
-    // 設定を更新
     Object.assign(settings, newSettings);
 
     console.log("🚀 Starting detection with settings:", settings);
 
     // モデル読み込み
-    const modelsLoaded = await loadFaceApiModels();
-    if (!modelsLoaded) {
+    const modelsLoadedSuccess = await loadFaceApiModels();
+    if (!modelsLoadedSuccess) {
       return { success: false, message: "Failed to load models" };
     }
 
@@ -660,8 +756,8 @@
       return { success: false, message: "Failed to start camera" };
     }
 
-    // サーバー接続
-    await connectToServer();
+    // Pusher接続
+    await connectToPusher();
 
     // 検出ループ開始
     isDetecting = true;
@@ -669,6 +765,12 @@
       runDetectionLoop,
       settings.detectionInterval
     );
+
+    // ステータス更新開始
+    startStatusUpdates();
+
+    // 初期ステータス送信
+    await sendStatusToServer("active", false, false, 0);
 
     console.log("✅ Detection started");
     return { success: true };
@@ -690,14 +792,14 @@
       detectionInterval = null;
     }
 
+    // ステータス更新停止
+    stopStatusUpdates();
+
     // カメラ停止
     stopCamera();
 
-    // Socket切断
-    if (socket) {
-      socket.disconnect();
-      socket = null;
-    }
+    // Pusher切断
+    disconnectFromPusher();
 
     // 状態リセット
     isDetecting = false;
@@ -706,6 +808,8 @@
     headDown = false;
     eyesClosedStartTime = null;
     headDownStartTime = null;
+
+    notifyPopup("CONNECTION_LOST");
 
     console.log("⏹️ Detection stopped");
     return { success: true };
@@ -721,7 +825,7 @@
     switch (message.action) {
       case "START_DETECTION":
         startDetection(message.settings).then(sendResponse);
-        return true; // 非同期レスポンス
+        return true;
 
       case "STOP_DETECTION":
         sendResponse(stopDetection());
@@ -736,6 +840,14 @@
         });
         break;
 
+      case "CHECK_FACE":
+        sendResponse({
+          faceDetected: faceDetected,
+          eyesClosed: eyesClosed,
+          headDown: headDown,
+        });
+        break;
+
       default:
         sendResponse({ success: false, message: "Unknown action" });
     }
@@ -743,5 +855,5 @@
     return true;
   });
 
-  console.log("✅ ClassGuard Content Script loaded - 完全版");
+  console.log("✅ ClassGuard Content Script loaded - Pusher版");
 })();

@@ -563,7 +563,6 @@
     <div class="tabs">
       <button class="tab-button active" data-tab="connection">🔌 接続設定</button>
       <button class="tab-button" data-tab="alert">🔔 アラート設定</button>
-      <button class="tab-button" data-tab="detection">👁️ 検知設定</button>
     </div>
 
     <!-- 接続設定タブ -->
@@ -586,34 +585,6 @@
           先生画面で生成された学生用URLを貼り付けて「URLから自動設定」をクリック
         </div>
       </div>
-
-      <!-- 詳細設定 -->
-      <details>
-        <summary>⚙️ 詳細設定（上級者向け）</summary>
-        <div style="margin-top:12px;">
-          <div class="form-group">
-            <label for="dashboardUrl">📡 ダッシュボードURL</label>
-            <input
-              type="text"
-              id="dashboardUrl"
-              placeholder="https://dashboard-inky-iota-87.vercel.app"
-              disabled
-            />
-            <div class="help-text">自動設定されます</div>
-          </div>
-
-          <div class="form-group">
-            <label for="sessionId">🔑 セッションID</label>
-            <input
-              type="text"
-              id="sessionId"
-              placeholder="session_1761408351503_bqoddkikd"
-              disabled
-            />
-            <div class="help-text">自動設定されます</div>
-          </div>
-        </div>
-      </details>
 
       <!-- 匿名ID -->
       <div class="form-group">
@@ -676,54 +647,8 @@
       </div>
     </div>
 
-    <!-- 検知設定タブ -->
-    <div id="detection-tab" class="tab-content">
-      <div class="form-group">
-        <label>👁️ 居眠り検知パラメータ</label>
-        <div class="help-text" style="margin-bottom:16px;">
-          顔認識と目・頭の角度から居眠りを自動判定します
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="eyeClosedThreshold">😴 目を閉じている閾値（秒）</label>
-        <div class="slider-container">
-          <input type="range" id="eyeClosedThreshold" min="1" max="10" value="3" step="0.5" />
-          <span class="slider-value" id="eyeClosedValue">3.0s</span>
-        </div>
-        <div class="help-text">この時間以上目を閉じていると居眠りと判定</div>
-      </div>
-
-      <div class="form-group">
-        <label for="headDownThreshold">🙇 頭の角度閾値（度）</label>
-        <div class="slider-container">
-          <input type="range" id="headDownThreshold" min="10" max="45" value="25" />
-          <span class="slider-value" id="headDownValue">25°</span>
-        </div>
-        <div class="help-text">この角度以上頭が下がると居眠りと判定</div>
-      </div>
-
-      <div class="form-group">
-        <label for="detectionInterval">⏱️ 検知間隔（ミリ秒）</label>
-        <div class="slider-container">
-          <input type="range" id="detectionInterval" min="100" max="2000" value="500" step="100" />
-          <span class="slider-value" id="detectionIntervalValue">500ms</span>
-        </div>
-        <div class="help-text">顔検出を行う間隔（短いほど精度UP、負荷UP）</div>
-      </div>
-
-      <div class="info-box" style="margin-top:16px;">
-        <strong>💡 推奨設定:</strong><br>
-        ・目を閉じている閾値: 3秒<br>
-        ・頭の角度閾値: 25度<br>
-        ・検知間隔: 500ms
-      </div>
-    </div>
 
     <!-- ボタン -->
-    <button id="saveButton" class="button button-primary">
-      💾 設定を保存
-    </button>
 
     <button id="testButton" class="button button-secondary">
       🔍 接続テスト

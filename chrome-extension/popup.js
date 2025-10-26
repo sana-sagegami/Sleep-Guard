@@ -33,13 +33,10 @@ const elements = {
   tabButtons: document.querySelectorAll(".tab-button"),
   connectionTab: document.getElementById("connection-tab"),
   alertTab: document.getElementById("alert-tab"),
-  detectionTab: document.getElementById("detection-tab"),
 
   // 接続設定
   sessionUrl: document.getElementById("sessionUrl"),
   extractButton: document.getElementById("extractButton"),
-  dashboardUrl: document.getElementById("dashboardUrl"),
-  sessionId: document.getElementById("sessionId"),
   anonymousId: document.getElementById("anonymousId"),
 
   // アラート設定
@@ -48,16 +45,7 @@ const elements = {
   volume: document.getElementById("volume"),
   volumeValue: document.getElementById("volumeValue"),
 
-  // 検知設定
-  eyeClosedThreshold: document.getElementById("eyeClosedThreshold"),
-  eyeClosedValue: document.getElementById("eyeClosedValue"),
-  headDownThreshold: document.getElementById("headDownThreshold"),
-  headDownValue: document.getElementById("headDownValue"),
-  detectionInterval: document.getElementById("detectionInterval"),
-  detectionIntervalValue: document.getElementById("detectionIntervalValue"),
-
   // ボタン
-  saveButton: document.getElementById("saveButton"),
   testButton: document.getElementById("testButton"),
   startButton: document.getElementById("startButton"),
   stopButton: document.getElementById("stopButton"),
@@ -103,28 +91,21 @@ function setupEventListeners() {
     card.addEventListener("click", () => selectAlertMode(card.dataset.mode));
   });
 
-  // スライダー値変更
+  // 音量スライダー - 自動保存
   elements.volume.addEventListener("input", (e) => {
     elements.volumeValue.textContent = e.target.value;
   });
 
-  elements.eyeClosedThreshold.addEventListener("input", (e) => {
-    elements.eyeClosedValue.textContent = `${e.target.value}s`;
-  });
-
-  elements.headDownThreshold.addEventListener("input", (e) => {
-    elements.headDownValue.textContent = `${e.target.value}°`;
-  });
-
-  elements.detectionInterval.addEventListener("input", (e) => {
-    elements.detectionIntervalValue.textContent = `${e.target.value}ms`;
+  elements.volume.addEventListener("change", () => {
+    saveSettings();
   });
 
   // ボタン
-  elements.saveButton.addEventListener("click", saveSettings);
   elements.testButton.addEventListener("click", testConnection);
   elements.startButton.addEventListener("click", startDetection);
   elements.stopButton.addEventListener("click", stopDetection);
+
+  console.log("✅ Event listeners setup complete");
 }
 
 // ============================================
@@ -132,18 +113,21 @@ function setupEventListeners() {
 // ============================================
 
 function switchTab(tabName) {
-  // ボタンのアクティブ状態
-  elements.tabButtons.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tabName);
+  // すべてのタブボタンとコンテンツを非アクティブに
+  elements.tabButtons.forEach((btn) => btn.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach((content) => {
+    content.classList.remove("active");
   });
 
-  // コンテンツの表示/非表示
-  elements.connectionTab.classList.toggle("active", tabName === "connection");
-  elements.alertTab.classList.toggle("active", tabName === "alert");
-  elements.detectionTab.classList.toggle("active", tabName === "detection");
+  // 選択されたタブをアクティブに
+  const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
+  const selectedContent = document.getElementById(`${tabName}-tab`);
 
-  currentTab = tabName;
-  console.log("🔄 Tab switched to:", tabName);
+  if (selectedButton && selectedContent) {
+    selectedButton.classList.add("active");
+    selectedContent.classList.add("active");
+    console.log("📑 Tab switched to:", tabName);
+  }
 }
 
 // ============================================
@@ -166,47 +150,9 @@ function selectAlertMode(mode) {
   elements.volumeGroup.style.display = mode === "sound" ? "block" : "none";
 
   console.log("🔔 Alert mode changed to:", mode);
-}
 
-// ============================================
-// URL自動抽出
-// ============================================
-
-function extractUrlInfo() {
-  const url = elements.sessionUrl.value.trim();
-
-  if (!url) {
-    showMessage("URLを入力してください", "error");
-    return;
-  }
-
-  try {
-    const urlObj = new URL(url);
-
-    // ダッシュボードURL（オリジン）を抽出
-    const dashboardUrl = urlObj.origin;
-
-    // セッションIDをクエリパラメータから抽出
-    const sessionId = urlObj.searchParams.get("session");
-
-    if (!sessionId) {
-      showMessage("セッションIDが見つかりません", "error");
-      return;
-    }
-
-    // フォームに設定
-    elements.dashboardUrl.value = dashboardUrl;
-    elements.sessionId.value = sessionId;
-
-    // 自動保存
-    saveSettings();
-
-    showMessage("✅ URLから設定を抽出しました！", "success");
-    console.log("📋 Extracted:", { dashboardUrl, sessionId });
-  } catch (error) {
-    console.error("❌ URL解析エラー:", error);
-    showMessage("無効なURLです", "error");
-  }
+  // 自動保存
+  saveSettings();
 }
 
 // ============================================
@@ -214,23 +160,32 @@ function extractUrlInfo() {
 // ============================================
 
 async function saveSettings() {
-  // 選択されているアラートモード
-  const selectedCard = document.querySelector(".alert-card.selected");
-  const alertMode = selectedCard ? selectedCard.dataset.mode : "sound";
-
-  const settings = {
-    dashboardUrl: elements.dashboardUrl.value,
-    sessionId: elements.sessionId.value,
-    alertMode: alertMode,
-    volume: parseInt(elements.volume.value),
-    eyeClosedThreshold: parseFloat(elements.eyeClosedThreshold.value),
-    headDownThreshold: parseInt(elements.headDownThreshold.value),
-    detectionInterval: parseInt(elements.detectionInterval.value),
-  };
-
   try {
+    // 選択されているアラートモード
+    const selectedCard = document.querySelector(".alert-card.selected");
+    const alertMode = selectedCard ? selectedCard.dataset.mode : "sound";
+
+    const settings = {
+      alertMode: alertMode,
+      volume: parseInt(elements.volume.value),
+    };
+
+    // 既存の設定を取得して保持
+    const existing = await chrome.storage.local.get([
+      "dashboardUrl",
+      "sessionId",
+    ]);
+
+    if (existing.dashboardUrl) {
+      settings.dashboardUrl = existing.dashboardUrl;
+    }
+
+    if (existing.sessionId) {
+      settings.sessionId = existing.sessionId;
+    }
+
     await chrome.storage.local.set(settings);
-    console.log("💾 Settings saved:", settings);
+    console.log("💾 Settings auto-saved:", settings);
     showMessage("✅ 設定を保存しました", "success");
   } catch (error) {
     console.error("❌ Save error:", error);
@@ -249,19 +204,7 @@ async function loadSettings() {
       "sessionId",
       "alertMode",
       "volume",
-      "eyeClosedThreshold",
-      "headDownThreshold",
-      "detectionInterval",
     ]);
-
-    // 接続設定
-    if (settings.dashboardUrl) {
-      elements.dashboardUrl.value = settings.dashboardUrl;
-    }
-
-    if (settings.sessionId) {
-      elements.sessionId.value = settings.sessionId;
-    }
 
     // アラートモード
     const alertMode = settings.alertMode || "sound";
@@ -272,22 +215,78 @@ async function loadSettings() {
     elements.volume.value = volume;
     elements.volumeValue.textContent = volume;
 
-    // 検知パラメータ
-    const eyeClosedThreshold = settings.eyeClosedThreshold || 3.0;
-    elements.eyeClosedThreshold.value = eyeClosedThreshold;
-    elements.eyeClosedValue.textContent = `${eyeClosedThreshold}s`;
-
-    const headDownThreshold = settings.headDownThreshold || 25;
-    elements.headDownThreshold.value = headDownThreshold;
-    elements.headDownValue.textContent = `${headDownThreshold}°`;
-
-    const detectionInterval = settings.detectionInterval || 500;
-    elements.detectionInterval.value = detectionInterval;
-    elements.detectionIntervalValue.textContent = `${detectionInterval}ms`;
-
     console.log("📂 Settings loaded:", settings);
   } catch (error) {
     console.error("❌ Load error:", error);
+  }
+}
+
+// ============================================
+// URL自動抽出
+// ============================================
+
+function extractUrlInfo() {
+  // URLを取得して、改行・空白をすべて削除
+  let url = elements.sessionUrl.value;
+
+  // 改行を削除
+  url = url.replace(/\r?\n|\r/g, "");
+
+  // 前後の空白を削除
+  url = url.trim();
+
+  // すべての空白を削除(URL内に空白があってはいけない)
+  url = url.replace(/\s/g, "");
+
+  console.log("🔍 Processing URL:", url);
+
+  if (!url) {
+    showMessage("URLを入力してください", "error");
+    return;
+  }
+
+  // URLの基本的な検証
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    showMessage(
+      "URLは http:// または https:// で始まる必要があります",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    const urlObj = new URL(url);
+
+    console.log("✅ URL parsed successfully");
+    console.log("   Origin:", urlObj.origin);
+    console.log("   Pathname:", urlObj.pathname);
+    console.log("   Search:", urlObj.search);
+
+    // ダッシュボードURL(オリジン)を抽出
+    const dashboardUrl = urlObj.origin;
+
+    // セッションIDをクエリパラメータから抽出
+    const sessionId = urlObj.searchParams.get("session");
+
+    console.log("   Session ID:", sessionId);
+
+    if (!sessionId) {
+      showMessage(
+        "セッションIDが見つかりません。URLに ?session=... が含まれているか確認してください",
+        "error"
+      );
+      return;
+    }
+
+    // 自動保存
+    saveExtractedSettings(dashboardUrl, sessionId);
+
+    showMessage("✅ URLから設定を抽出しました!", "success");
+    console.log("📋 Extracted successfully:", { dashboardUrl, sessionId });
+  } catch (error) {
+    console.error("❌ URL解析エラー:", error);
+    console.error("   URL:", url);
+    showMessage("無効なURLです: " + error.message, "error");
   }
 }
 
@@ -308,10 +307,14 @@ async function initAnonymousId() {
       console.log("🆔 Loaded anonymous ID:", anonymousId);
     }
 
-    elements.anonymousId.textContent = anonymousId;
+    if (elements.anonymousId) {
+      elements.anonymousId.textContent = anonymousId;
+    }
   } catch (error) {
     console.error("❌ Anonymous ID error:", error);
-    elements.anonymousId.textContent = "エラー";
+    if (elements.anonymousId) {
+      elements.anonymousId.textContent = "エラー";
+    }
   }
 }
 
@@ -320,55 +323,32 @@ function generateAnonymousId() {
   const random = Math.random().toString(36).substr(2, 9);
   return `student_${timestamp}_${random}`;
 }
-
-// ============================================
-// 接続テスト
-// ============================================
-
-async function testConnection() {
-  const dashboardUrl = elements.dashboardUrl.value;
-  const sessionId = elements.sessionId.value;
-
-  if (!dashboardUrl || !sessionId) {
-    showMessage("ダッシュボードURLとセッションIDを設定してください", "error");
-    return;
-  }
-
-  showMessage("🔍 接続テスト中...", "info");
-
-  try {
-    // 簡易的な接続確認
-    const response = await fetch(dashboardUrl, {
-      method: "HEAD",
-      mode: "no-cors",
-    });
-
-    showMessage("✅ サーバーに到達できます", "success");
-    console.log("✅ Connection test passed");
-  } catch (error) {
-    console.error("❌ Connection test failed:", error);
-    showMessage("❌ サーバーに接続できません", "error");
-  }
-}
+// filepath: [popup.js](http://_vscodecontentref_/1)
 
 // ============================================
 // 検知開始
 // ============================================
 
 async function startDetection() {
-  const dashboardUrl = elements.dashboardUrl.value;
-  const sessionId = elements.sessionId.value;
+  // 設定を取得
+  const settings = await chrome.storage.local.get([
+    "dashboardUrl",
+    "sessionId",
+    "alertMode",
+    "volume",
+    "anonymousId",
+  ]);
 
-  if (!dashboardUrl || !sessionId) {
-    showMessage("ダッシュボードURLとセッションIDを設定してください", "error");
+  if (!settings.dashboardUrl || !settings.sessionId) {
+    showMessage("URLを設定してください", "error");
+    switchTab("connection");
     return;
   }
 
-  try {
-    // 設定を保存
-    await saveSettings();
+  console.log("▶️ Starting detection with settings:", settings);
 
-    // content scriptに検知開始を通知
+  try {
+    // アクティブなタブを取得
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
@@ -379,18 +359,14 @@ async function startDetection() {
       return;
     }
 
-    // content scriptに設定を送信
-    const settings = await chrome.storage.local.get([
-      "dashboardUrl",
-      "sessionId",
-      "alertMode",
-      "volume",
-      "eyeClosedThreshold",
-      "headDownThreshold",
-      "detectionInterval",
-      "anonymousId",
-    ]);
+    console.log("📍 Active tab:", tab.url);
 
+    // まず接続状態を「接続中」に更新
+    await chrome.storage.local.set({ isConnected: true });
+    updateConnectionUI(true, settings.sessionId);
+    showMessage("🔄 検知を開始しています...", "info");
+
+    // content scriptにメッセージを送信
     chrome.tabs.sendMessage(
       tab.id,
       {
@@ -398,25 +374,172 @@ async function startDetection() {
         settings: settings,
       },
       (response) => {
+        // エラーチェック
         if (chrome.runtime.lastError) {
-          console.error("❌ Start detection failed:", chrome.runtime.lastError);
-          showMessage("検知開始に失敗しました", "error");
+          console.error("❌ Content script error:", chrome.runtime.lastError.message);
+          
+          // content scriptが見つからない場合の詳細なエラーメッセージ
+          if (chrome.runtime.lastError.message.includes("Could not establish connection")) {
+            showMessage(
+              "⚠️ ページをリロードしてから再度お試しください。または、カメラ使用が許可されているページで実行してください。",
+              "error"
+            );
+          } else {
+            showMessage("content scriptとの通信に失敗しました", "error");
+          }
+          
+          updateConnectionUI(false);
+          chrome.storage.local.set({ isConnected: false });
           return;
         }
 
+        // レスポンスチェック
         if (response?.success) {
           isDetecting = true;
           updateDetectionUI(true);
           showMessage("✅ 検知を開始しました", "success");
-          console.log("▶️ Detection started");
+          console.log("▶️ Detection started successfully");
+          console.log("📡 WebSocket connecting to:", `${settings.dashboardUrl}/ws/${settings.sessionId}`);
         } else {
-          showMessage("検知開始に失敗しました", "error");
+          console.error("❌ Detection start failed:", response);
+          showMessage("検知開始に失敗しました: " + (response?.error || "不明なエラー"), "error");
+          updateConnectionUI(false);
+          chrome.storage.local.set({ isConnected: false });
         }
       }
     );
   } catch (error) {
     console.error("❌ Start detection error:", error);
     showMessage("エラーが発生しました: " + error.message, "error");
+    updateConnectionUI(false);
+    chrome.storage.local.set({ isConnected: false });
+  }
+}
+
+// ============================================
+// 接続テスト
+// ============================================
+
+async function testConnection() {
+  const settings = await chrome.storage.local.get([
+    "dashboardUrl",
+    "sessionId",
+  ]);
+
+  if (!settings.dashboardUrl || !settings.sessionId) {
+    showMessage("URLを設定してください", "error");
+    return;
+  }
+
+  showMessage("🔍 接続テスト中...", "info");
+  console.log("🔍 Testing connection to:", settings.dashboardUrl);
+  console.log("🔑 Session ID:", settings.sessionId);
+
+  try {
+    // 1. ヘルスチェック
+    console.log("📡 Testing /api/health endpoint...");
+    const healthUrl = `${settings.dashboardUrl}/api/health`;
+    
+    const healthResponse = await fetch(healthUrl, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!healthResponse.ok) {
+      throw new Error(`Health check failed: ${healthResponse.status}`);
+    }
+
+    const healthData = await healthResponse.json();
+    console.log("✅ Health check passed:", healthData);
+
+    // 2. Pusher設定取得テスト
+    console.log("📡 Testing /api/pusher-config endpoint...");
+    const pusherConfigUrl = `${settings.dashboardUrl}/api/pusher-config`;
+    
+    const pusherResponse = await fetch(pusherConfigUrl, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!pusherResponse.ok) {
+      throw new Error(`Pusher config failed: ${pusherResponse.status}`);
+    }
+
+    const pusherData = await pusherResponse.json();
+    console.log("✅ Pusher config retrieved:", {
+      key: pusherData.key,
+      cluster: pusherData.cluster,
+    });
+
+    // 3. 接続成功
+    await chrome.storage.local.set({ 
+      isConnected: true,
+      lastConnected: new Date().toISOString(),
+      pusherConfig: pusherData, // Pusher設定を保存
+    });
+    
+    updateConnectionUI(true, settings.sessionId);
+    showMessage("✅ サーバーに接続できました", "success");
+    console.log("✅ Connection test completed successfully");
+
+  } catch (error) {
+    console.error("❌ Connection test failed:", error);
+    
+    // 詳細なエラーメッセージ
+    let errorMessage = "サーバーに接続できません";
+    
+    if (error.message.includes("Failed to fetch")) {
+      errorMessage = "サーバーに到達できません。URLを確認してください";
+    } else if (error.message.includes("Health check failed")) {
+      errorMessage = "サーバーは動作していますが、ヘルスチェックに失敗しました";
+    } else if (error.message.includes("Pusher config failed")) {
+      errorMessage = "Pusher設定の取得に失敗しました";
+    }
+    
+    updateConnectionUI(false);
+    await chrome.storage.local.set({ isConnected: false });
+    showMessage(`❌ ${errorMessage}`, "error");
+  }
+}
+
+// ============================================
+// 抽出した設定を保存（接続テスト自動実行）
+// ============================================
+
+async function saveExtractedSettings(dashboardUrl, sessionId) {
+  try {
+    // 既存の設定を取得
+    const existing = await chrome.storage.local.get(["alertMode", "volume"]);
+
+    // 新しい設定をマージ
+    const settings = {
+      dashboardUrl: dashboardUrl,
+      sessionId: sessionId,
+      alertMode: existing.alertMode || "sound",
+      volume: existing.volume || 70,
+      isConnected: false,
+    };
+
+    await chrome.storage.local.set(settings);
+    console.log("💾 Extracted settings saved:", settings);
+
+    // UI更新: セッション情報を表示
+    if (elements.sessionInfo && elements.currentSessionId) {
+      elements.sessionInfo.style.display = "block";
+      elements.currentSessionId.textContent = sessionId;
+    }
+
+    // 自動的に接続テストを実行
+    console.log("🔄 Auto-testing connection...");
+    await testConnection();
+    
+  } catch (error) {
+    console.error("❌ Save extracted settings error:", error);
+    throw error;
   }
 }
 
@@ -460,19 +583,324 @@ async function stopDetection() {
 
 function updateDetectionUI(detecting) {
   // ボタンの有効/無効
-  elements.startButton.disabled = detecting;
-  elements.stopButton.disabled = !detecting;
+  if (elements.startButton) {
+    elements.startButton.disabled = detecting;
+  }
+  if (elements.stopButton) {
+    elements.stopButton.disabled = !detecting;
+  }
 
   // インジケーター
   if (detecting) {
-    elements.detectionIndicator.className = "indicator detecting";
-    elements.detectionStatus.textContent = "検知中";
-    elements.faceStatus.style.display = "block";
+    if (elements.detectionIndicator) {
+      elements.detectionIndicator.className = "indicator detecting";
+    }
+    if (elements.detectionStatus) {
+      elements.detectionStatus.textContent = "検知中";
+    }
+    if (elements.faceStatus) {
+      elements.faceStatus.style.display = "block";
+    }
   } else {
-    elements.detectionIndicator.className = "indicator inactive";
-    elements.detectionStatus.textContent = "停止中";
-    elements.faceStatus.style.display = "none";
-    elements.faceDetectionStatus.textContent = "待機中";
+    if (elements.detectionIndicator) {
+      elements.detectionIndicator.className = "indicator inactive";
+    }
+    if (elements.detectionStatus) {
+      elements.detectionStatus.textContent = "停止中";
+    }
+    if (elements.faceStatus) {
+      elements.faceStatus.style.display = "none";
+    }
+    if (elements.faceDetectionStatus) {
+      elements.faceDetectionStatus.textContent = "待機中";
+    }
+  }
+}
+
+// ============================================
+// 顔検出状態更新
+// ============================================
+
+function updateFaceStatus(status) {
+  if (!elements.faceStatusIcon || !elements.faceStatusText || !elements.faceStatusDetail) {
+    return;
+  }
+
+  switch (status) {
+    case "detecting":
+      elements.faceStatusIcon.textContent = "👤";
+      elements.faceStatusText.textContent = "顔検出中";
+      elements.faceStatusDetail.textContent = "正常に顔を検出しています";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "✅ 顔検出中";
+      }
+      break;
+
+    case "no_face":
+      elements.faceStatusIcon.textContent = "❌";
+      elements.faceStatusText.textContent = "顔が見つかりません";
+      elements.faceStatusDetail.textContent = "カメラの前に顔を向けてください";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "❌ 顔なし";
+      }
+      break;
+
+    case "eyes_closed":
+      elements.faceStatusIcon.textContent = "😪";
+      elements.faceStatusText.textContent = "目を閉じています";
+      elements.faceStatusDetail.textContent = "目を開けてください";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "😪 目を閉じています";
+      }
+      break;
+
+    case "head_down":
+      elements.faceStatusIcon.textContent = "😴";
+      elements.faceStatusText.textContent = "頭が下がっています";
+      elements.faceStatusDetail.textContent = "居眠りの可能性";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "😴 頭が下がっています";
+      }
+      break;
+
+    case "drowsy":
+      elements.faceStatusIcon.textContent = "🚨";
+      elements.faceStatusText.textContent = "居眠り検出！";
+      elements.faceStatusDetail.textContent = "アラートを発信しています";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "🚨 居眠り検出";
+      }
+      break;
+
+    case "focused":
+      elements.faceStatusIcon.textContent = "✅";
+      elements.faceStatusText.textContent = "集中中";
+      elements.faceStatusDetail.textContent = "良好な状態です";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "✅ 集中中";
+      }
+      break;
+  }
+}
+
+// ============================================
+// メッセージ表示
+// ============================================
+
+function showMessage(text, type = "info") {
+  if (!elements.message) {
+    console.warn("⚠️ Message element not found");
+    return;
+  }
+
+  elements.message.textContent = text;
+  elements.message.className = `message ${type} show`;
+
+  // 5秒後に自動非表示
+  setTimeout(() => {
+    elements.message.classList.remove("show");
+  }, 5000);
+}
+
+console.log("✅ Popup script loaded - 完全版");
+
+
+// ============================================
+// 抽出した設定を保存
+// ============================================
+
+async function saveExtractedSettings(dashboardUrl, sessionId) {
+  try {
+    // 既存の設定を取得
+    const existing = await chrome.storage.local.get(["alertMode", "volume"]);
+
+    // 新しい設定をマージ
+    const settings = {
+      dashboardUrl: dashboardUrl,
+      sessionId: sessionId,
+      alertMode: existing.alertMode || "sound",
+      volume: existing.volume || 70,
+      isConnected: false, // まだ接続していない
+    };
+
+    await chrome.storage.local.set(settings);
+    console.log("💾 Extracted settings saved:", settings);
+    
+    // UI更新: セッション情報を表示
+    if (elements.sessionInfo && elements.currentSessionId) {
+      elements.sessionInfo.style.display = "block";
+      elements.currentSessionId.textContent = sessionId;
+    }
+    
+    // 接続状態は「未接続」のまま（接続テストまたは検知開始で接続）
+    updateConnectionUI(false);
+  } catch (error) {
+    console.error("❌ Save extracted settings error:", error);
+    throw error;
+  }
+}
+
+// ============================================
+// 接続テスト
+// ============================================
+
+async function testConnection() {
+  const settings = await chrome.storage.local.get([
+    "dashboardUrl",
+    "sessionId",
+  ]);
+
+  if (!settings.dashboardUrl || !settings.sessionId) {
+    showMessage("URLを設定してください", "error");
+    return;
+  }
+
+  showMessage("🔍 接続テスト中...", "info");
+  console.log("🔍 Testing connection to:", settings.dashboardUrl);
+  console.log("🔑 Session ID:", settings.sessionId);
+
+  try {
+    // HTTPリクエストでサーバーの生存確認
+    const response = await fetch(`${settings.dashboardUrl}/api/health`, {
+      method: "GET",
+      mode: "cors",
+    }).catch(() => null);
+
+    if (response && response.ok) {
+      console.log("✅ Server is reachable");
+      
+      // 接続成功をストレージに保存
+      await chrome.storage.local.set({ 
+        isConnected: true,
+        lastConnected: new Date().toISOString()
+      });
+      
+      updateConnectionUI(true, settings.sessionId);
+      showMessage("✅ サーバーに接続できました", "success");
+    } else {
+      // /health がない場合、トップページで確認
+      const fallbackResponse = await fetch(settings.dashboardUrl, {
+        method: "HEAD",
+        mode: "no-cors",
+      }).catch(() => null);
+
+      if (fallbackResponse) {
+        console.log("✅ Server is reachable (fallback check)");
+        
+        await chrome.storage.local.set({ 
+          isConnected: true,
+          lastConnected: new Date().toISOString()
+        });
+        
+        updateConnectionUI(true, settings.sessionId);
+        showMessage("✅ サーバーに接続できました", "success");
+      } else {
+        throw new Error("サーバーに到達できません");
+      }
+    }
+  } catch (error) {
+    console.error("❌ Connection test failed:", error);
+    updateConnectionUI(false);
+    showMessage("❌ サーバーに接続できません。URLを確認してください", "error");
+  }
+}
+
+// ============================================
+// 検知開始
+// ============================================
+
+async function startDetection() {
+  // 設定を取得
+  const settings = await chrome.storage.local.get([
+    "dashboardUrl",
+    "sessionId",
+    "alertMode",
+    "volume",
+    "anonymousId",
+  ]);
+
+  if (!settings.dashboardUrl || !settings.sessionId) {
+    showMessage("URLを設定してください", "error");
+    switchTab("connection");
+    return;
+  }
+
+  if (!settings.anonymousId) {
+    showMessage("匿名IDが見つかりません", "error");
+    return;
+  }
+
+  console.log("▶️ Starting detection with settings:", settings);
+
+  try {
+    // アクティブなタブを取得
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    if (!tab?.id) {
+      showMessage("アクティブなタブが見つかりません", "error");
+      return;
+    }
+
+    console.log("📍 Active tab:", tab.url);
+
+    // 検知開始メッセージを表示
+    showMessage("🔄 検知を開始しています...", "info");
+
+    // content scriptにメッセージを送信
+    chrome.tabs.sendMessage(
+      tab.id,
+      {
+        action: "START_DETECTION",
+        settings: settings,
+      },
+      async (response) => {
+        // エラーチェック
+        if (chrome.runtime.lastError) {
+          console.error("❌ Content script error:", chrome.runtime.lastError.message);
+          
+          // content scriptが見つからない場合
+          if (chrome.runtime.lastError.message.includes("Could not establish connection")) {
+            showMessage(
+              "⚠️ ページをリロードしてから再度お試しください",
+              "error"
+            );
+          } else {
+            showMessage("content scriptとの通信に失敗しました", "error");
+          }
+          
+          updateConnectionUI(false);
+          await chrome.storage.local.set({ isConnected: false });
+          return;
+        }
+
+        // レスポンスチェック
+        if (response?.success) {
+          isDetecting = true;
+          updateDetectionUI(true);
+          
+          // Pusherに接続できたら「接続中」に更新
+          await chrome.storage.local.set({ isConnected: true });
+          updateConnectionUI(true, settings.sessionId);
+          
+          showMessage("✅ 検知を開始しました", "success");
+          console.log("▶️ Detection started successfully");
+          console.log("📡 Pusher channel: session-" + settings.sessionId);
+        } else {
+          console.error("❌ Detection start failed:", response);
+          showMessage("検知開始に失敗しました: " + (response?.message || "不明なエラー"), "error");
+          updateConnectionUI(false);
+          await chrome.storage.local.set({ isConnected: false });
+        }
+      }
+    );
+  } catch (error) {
+    console.error("❌ Start detection error:", error);
+    showMessage("エラーが発生しました: " + error.message, "error");
+    updateConnectionUI(false);
+    await chrome.storage.local.set({ isConnected: false });
   }
 }
 
@@ -487,8 +915,12 @@ async function checkConnectionStatus() {
       "sessionId",
     ]);
 
+    console.log("📊 Current connection status:", { isConnected, sessionId });
+
     if (isConnected && sessionId) {
       updateConnectionUI(true, sessionId);
+    } else {
+      updateConnectionUI(false);
     }
   } catch (error) {
     console.error("❌ Check connection error:", error);
@@ -500,83 +932,29 @@ async function checkConnectionStatus() {
 // ============================================
 
 function updateConnectionUI(connected, sessionId = null) {
-  if (connected) {
-    elements.connectionIndicator.className = "indicator active";
-    elements.connectionStatus.textContent = "接続中";
+  console.log("🔄 Updating connection UI:", { connected, sessionId });
 
-    if (sessionId) {
-      elements.sessionInfo.style.display = "block";
-      elements.currentSessionId.textContent = sessionId;
+  if (elements.connectionIndicator) {
+    if (connected) {
+      elements.connectionIndicator.className = "indicator active";
+      if (elements.connectionStatus) {
+        elements.connectionStatus.textContent = "接続中";
+      }
+
+      if (sessionId && elements.sessionInfo && elements.currentSessionId) {
+        elements.sessionInfo.style.display = "block";
+        elements.currentSessionId.textContent = sessionId;
+      }
+    } else {
+      elements.connectionIndicator.className = "indicator inactive";
+      if (elements.connectionStatus) {
+        elements.connectionStatus.textContent = "未接続";
+      }
+      if (elements.sessionInfo) {
+        elements.sessionInfo.style.display = "none";
+      }
     }
-  } else {
-    elements.connectionIndicator.className = "indicator inactive";
-    elements.connectionStatus.textContent = "未接続";
-    elements.sessionInfo.style.display = "none";
   }
-}
-
-// ============================================
-// 顔検出状態更新
-// ============================================
-
-function updateFaceStatus(status) {
-  switch (status) {
-    case "detecting":
-      elements.faceStatusIcon.textContent = "👤";
-      elements.faceStatusText.textContent = "顔検出中";
-      elements.faceStatusDetail.textContent = "正常に顔を検出しています";
-      elements.faceDetectionStatus.textContent = "✅ 顔検出中";
-      break;
-
-    case "no_face":
-      elements.faceStatusIcon.textContent = "❌";
-      elements.faceStatusText.textContent = "顔が見つかりません";
-      elements.faceStatusDetail.textContent = "カメラの前に顔を向けてください";
-      elements.faceDetectionStatus.textContent = "❌ 顔なし";
-      break;
-
-    case "eyes_closed":
-      elements.faceStatusIcon.textContent = "😪";
-      elements.faceStatusText.textContent = "目を閉じています";
-      elements.faceStatusDetail.textContent = "目を開けてください";
-      elements.faceDetectionStatus.textContent = "😪 目を閉じています";
-      break;
-
-    case "head_down":
-      elements.faceStatusIcon.textContent = "😴";
-      elements.faceStatusText.textContent = "頭が下がっています";
-      elements.faceStatusDetail.textContent = "居眠りの可能性";
-      elements.faceDetectionStatus.textContent = "😴 頭が下がっています";
-      break;
-
-    case "drowsy":
-      elements.faceStatusIcon.textContent = "🚨";
-      elements.faceStatusText.textContent = "居眠り検出！";
-      elements.faceStatusDetail.textContent = "アラートを発信しています";
-      elements.faceDetectionStatus.textContent = "🚨 居眠り検出";
-      break;
-
-    case "focused":
-      elements.faceStatusIcon.textContent = "✅";
-      elements.faceStatusText.textContent = "集中中";
-      elements.faceStatusDetail.textContent = "良好な状態です";
-      elements.faceDetectionStatus.textContent = "✅ 集中中";
-      break;
-  }
-}
-
-// ============================================
-// メッセージ表示
-// ============================================
-
-function showMessage(text, type = "info") {
-  elements.message.textContent = text;
-  elements.message.className = `message ${type} show`;
-
-  // 5秒後に自動非表示
-  setTimeout(() => {
-    elements.message.classList.remove("show");
-  }, 5000);
 }
 
 // ============================================
@@ -605,7 +983,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "DROWSINESS_DETECTED":
       updateFaceStatus("drowsy");
-      showMessage("🚨 居眠りを検出しました！", "error");
+      showMessage("🚨 居眠りを検出しました!", "error");
       break;
 
     case "FOCUSED":
@@ -613,19 +991,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "CONNECTION_ESTABLISHED":
+      // WebSocket接続が確立された
+      chrome.storage.local.set({ 
+        isConnected: true,
+        lastConnected: new Date().toISOString()
+      });
       updateConnectionUI(true, message.sessionId);
       showMessage("✅ サーバーに接続しました", "success");
+      console.log("✅ WebSocket connection established");
       break;
 
     case "CONNECTION_LOST":
+      // WebSocket接続が切れた
+      chrome.storage.local.set({ isConnected: false });
       updateConnectionUI(false);
       updateDetectionUI(false);
       showMessage("❌ 接続が切れました", "error");
+      console.log("❌ WebSocket connection lost");
       break;
   }
 
   sendResponse({ received: true });
   return true;
 });
-
-console.log("✅ Popup script loaded - 完全版");
