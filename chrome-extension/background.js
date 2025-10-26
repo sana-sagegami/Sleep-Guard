@@ -6,7 +6,7 @@
 console.log("🔧 ClassGuard Background Script 開始 (Pusher版)");
 
 // ⚠️ 重要: あなたのVercelダッシュボードURLに変更してください
-const DASHBOARD_URL = "https://dashboard-inky-iota-87.vercel.app"; // ← ここを変更！
+const DASHBOARD_URL = "https://dashboard-inky-iota-87.vercel.app";
 
 // グローバル変数
 let settings = {};
@@ -16,6 +16,8 @@ let faceNotDetectedTime = 0;
 let detectionIntervalRef = null;
 let currentSessionId = null;
 let monitoringTabId = null;
+let pusher = null;
+let channel = null;
 
 // 拡張機能インストール時
 chrome.runtime.onInstalled.addListener(() => {
@@ -62,8 +64,52 @@ loadSettings();
 
 // メッセージリスナー
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("📨 メッセージ:", message.type);
+  console.log("📨 メッセージ受信:", message.action || message.type);
 
+  // Pusher接続リクエスト
+  if (message.action === "CONNECT_PUSHER") {
+    console.log("🔌 CONNECT_PUSHER request received");
+    connectPusher(message.config, message.sessionId)
+      .then((success) => {
+        console.log("✅ Pusher connection result:", success);
+        sendResponse({ success: success });
+      })
+      .catch((error) => {
+        console.error("❌ Pusher connection error:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // 非同期レスポンスを有効にする
+  }
+
+  // Pusher切断リクエスト
+  if (message.action === "DISCONNECT_PUSHER") {
+    console.log("🔌 DISCONNECT_PUSHER request received");
+    disconnectPusher();
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // ステータス送信リクエスト（CORS回避）
+  if (message.action === "SEND_STATUS") {
+    console.log("📤 SEND_STATUS request received");
+    fetch(message.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(message.data),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        console.log("✅ Status sent successfully:", data);
+        sendResponse({ success: true, data: data });
+      })
+      .catch((error) => {
+        console.error("❌ Fetch error:", error);
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // 非同期レスポンスを有効にする
+  }
+
+  // 既存のメッセージハンドラー
   (async () => {
     try {
       switch (message.type) {
@@ -102,6 +148,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
 
         default:
+          // 未知のメッセージタイプは無視（エラーにしない）
+          console.debug("⚠️ Unknown message type:", message.type);
           sendResponse({ success: false, error: "Unknown message type" });
       }
     } catch (error) {
@@ -110,7 +158,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   })();
 
-  return true;
+  return true; // 非同期レスポンスを有効にする
 });
 
 // 接続テスト
@@ -353,6 +401,109 @@ function playAlertSound() {
   } catch (err) {
     console.error("❌ アラート音エラー:", err);
   }
+}
+
+// ============================================
+// Pusher接続（Background経由）
+// ============================================
+
+async function connectPusher(config, sessionId) {
+  try {
+    console.log("🔌 Connecting to Pusher in background...");
+    console.log("   Config:", { key: config.key, cluster: config.cluster });
+    console.log("   Session ID:", sessionId);
+
+    // Pusherスクリプトを動的に読み込み
+    if (!self.Pusher) {
+      await loadPusherScript();
+    }
+
+    pusher = new Pusher(config.key, {
+      cluster: config.cluster,
+    });
+
+    const channelName = `session-${sessionId}`;
+    console.log("📡 Subscribing to channel:", channelName);
+
+    channel = pusher.subscribe(channelName);
+
+    return new Promise((resolve) => {
+      channel.bind("pusher:subscription_succeeded", () => {
+        console.log("✅ Pusher connected in background");
+        resolve(true);
+      });
+
+      channel.bind("pusher:subscription_error", (error) => {
+        console.error("❌ Pusher subscription error:", error);
+        resolve(false);
+      });
+
+      // 先生からのコマンドを受信
+      channel.bind("teacher-command", (data) => {
+        console.log("📨 Teacher command received:", data);
+        // Content scriptに転送
+        if (monitoringTabId) {
+          chrome.tabs
+            .sendMessage(monitoringTabId, {
+              action: "TEACHER_COMMAND",
+              command: data,
+            })
+            .catch((err) => {
+              console.error("❌ Failed to send command to content:", err);
+            });
+        }
+      });
+
+      // タイムアウト設定
+      setTimeout(() => {
+        if (!channel.subscribed) {
+          console.error("❌ Pusher connection timeout");
+          resolve(false);
+        }
+      }, 10000);
+    });
+  } catch (error) {
+    console.error("❌ Pusher connection error:", error);
+    return false;
+  }
+}
+
+function disconnectPusher() {
+  if (channel) {
+    channel.unbind_all();
+    if (pusher) {
+      pusher.unsubscribe(channel.name);
+    }
+    channel = null;
+  }
+  if (pusher) {
+    pusher.disconnect();
+    pusher = null;
+  }
+  console.log("🔌 Pusher disconnected");
+}
+
+async function loadPusherScript() {
+  return new Promise((resolve, reject) => {
+    if (self.Pusher) {
+      resolve();
+      return;
+    }
+
+    try {
+      importScripts("https://js.pusher.com/8.2.0/pusher.min.js");
+
+      if (self.Pusher) {
+        console.log("✅ Pusher script loaded in background");
+        resolve();
+      } else {
+        reject(new Error("Failed to load Pusher"));
+      }
+    } catch (error) {
+      console.error("❌ Failed to import Pusher script:", error);
+      reject(error);
+    }
+  });
 }
 
 console.log("✅ Background Script 初期化完了");

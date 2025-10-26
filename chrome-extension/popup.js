@@ -7,7 +7,6 @@ let socket = null;
 let isDetecting = false;
 let currentTab = null;
 
-
 // DOM要素
 const elements = {
   // メッセージ
@@ -325,7 +324,6 @@ function generateAnonymousId() {
   return `student_${timestamp}_${random}`;
 }
 
-
 // ============================================
 // 接続テスト
 // ============================================
@@ -349,7 +347,7 @@ async function testConnection() {
     // 1. ヘルスチェック
     console.log("📡 Testing /api/health endpoint...");
     const healthUrl = `${settings.dashboardUrl}/api/health`;
-    
+
     const healthResponse = await fetch(healthUrl, {
       method: "GET",
       headers: {
@@ -367,7 +365,7 @@ async function testConnection() {
     // 2. Pusher設定取得テスト
     console.log("📡 Testing /api/pusher-config endpoint...");
     const pusherConfigUrl = `${settings.dashboardUrl}/api/pusher-config`;
-    
+
     const pusherResponse = await fetch(pusherConfigUrl, {
       method: "GET",
       headers: {
@@ -386,22 +384,21 @@ async function testConnection() {
     });
 
     // 3. 接続成功
-    await chrome.storage.local.set({ 
+    await chrome.storage.local.set({
       isConnected: true,
       lastConnected: new Date().toISOString(),
       pusherConfig: pusherData, // Pusher設定を保存
     });
-    
+
     updateConnectionUI(true, settings.sessionId);
     showMessage("✅ サーバーに接続できました", "success");
     console.log("✅ Connection test completed successfully");
-
   } catch (error) {
     console.error("❌ Connection test failed:", error);
-    
+
     // 詳細なエラーメッセージ
     let errorMessage = "サーバーに接続できません";
-    
+
     if (error.message.includes("Failed to fetch")) {
       errorMessage = "サーバーに到達できません。URLを確認してください";
     } else if (error.message.includes("Health check failed")) {
@@ -409,7 +406,7 @@ async function testConnection() {
     } else if (error.message.includes("Pusher config failed")) {
       errorMessage = "Pusher設定の取得に失敗しました";
     }
-    
+
     updateConnectionUI(false);
     await chrome.storage.local.set({ isConnected: false });
     showMessage(`❌ ${errorMessage}`, "error");
@@ -446,13 +443,11 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
     // 自動的に接続テストを実行
     console.log("🔄 Auto-testing connection...");
     await testConnection();
-    
   } catch (error) {
     console.error("❌ Save extracted settings error:", error);
     throw error;
   }
 }
-
 
 // ============================================
 // メッセージ表示
@@ -475,7 +470,6 @@ function showMessage(text, type = "info") {
 
 console.log("✅ Popup script loaded - 完全版");
 
-
 // ============================================
 // 抽出した設定を保存
 // ============================================
@@ -496,13 +490,13 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
 
     await chrome.storage.local.set(settings);
     console.log("💾 Extracted settings saved:", settings);
-    
+
     // UI更新: セッション情報を表示
     if (elements.sessionInfo && elements.currentSessionId) {
       elements.sessionInfo.style.display = "block";
       elements.currentSessionId.textContent = sessionId;
     }
-    
+
     // 接続状態は「未接続」のまま（接続テストまたは検知開始で接続）
     updateConnectionUI(false);
   } catch (error) {
@@ -510,8 +504,6 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
     throw error;
   }
 }
-
-
 
 // ============================================
 // 接続状態確認
@@ -610,7 +602,11 @@ function updateDetectionUI(detecting) {
 // ============================================
 
 function updateFaceStatus(status) {
-  if (!elements.faceStatusIcon || !elements.faceStatusText || !elements.faceStatusDetail) {
+  if (
+    !elements.faceStatusIcon ||
+    !elements.faceStatusText ||
+    !elements.faceStatusDetail
+  ) {
     return;
   }
 
@@ -701,7 +697,7 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
     // 自動的に接続テストを実行
     console.log("🔄 Auto-testing connection...");
     await testConnection();
-    
+
     // 接続成功したら自動的に検知開始
     const { isConnected } = await chrome.storage.local.get("isConnected");
     if (isConnected) {
@@ -711,7 +707,6 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
         startDetection();
       }, 1000);
     }
-    
   } catch (error) {
     console.error("❌ Save extracted settings error:", error);
     throw error;
@@ -796,7 +791,7 @@ async function checkDetectionStatus() {
         isDetecting = true;
         updateDetectionUI(true);
         console.log("✅ Detection is already running");
-        
+
         // 顔の状態も復元
         if (response.faceDetected) {
           if (response.eyesClosed) {
@@ -859,10 +854,12 @@ async function startDetection() {
     console.log("📍 Active tab:", tab.url);
 
     // 制限されたページでの警告
-    if (tab.url.startsWith("chrome://") || 
-        tab.url.startsWith("chrome-extension://") ||
-        tab.url.startsWith("edge://") ||
-        tab.url.includes("google.com/search")) {
+    if (
+      tab.url.startsWith("chrome://") ||
+      tab.url.startsWith("chrome-extension://") ||
+      tab.url.startsWith("edge://") ||
+      tab.url.includes("google.com/search")
+    ) {
       showMessage(
         "⚠️ このページでは拡張機能が動作しません。通常のWebページで試してください",
         "error"
@@ -877,14 +874,17 @@ async function startDetection() {
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ["face-api.js", "content.js"]
+        files: ["face-api.js", "content.js"],
       });
       console.log("✅ Content script injected manually");
-      
+
       // 少し待ってからメッセージ送信
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (injectError) {
-      console.warn("⚠️ Manual injection failed (might be already loaded):", injectError.message);
+      console.warn(
+        "⚠️ Manual injection failed (might be already loaded):",
+        injectError.message
+      );
     }
 
     // content scriptにメッセージを送信
@@ -898,33 +898,35 @@ async function startDetection() {
       if (response?.success) {
         isDetecting = true;
         updateDetectionUI(true);
-        
+
         await chrome.storage.local.set({ isConnected: true });
         updateConnectionUI(true, settings.sessionId);
-        
+
+        // QRコードを生成して表示
+        await generateAndShowQRCode();
+
         showMessage("✅ 検知を開始しました", "success");
         console.log("▶️ Detection started successfully");
         console.log("📡 Pusher channel: session-" + settings.sessionId);
-        
+
         // ポップアップは閉じない（ユーザーが手動で閉じるまで開いたまま）
       } else {
         console.error("❌ Detection start failed:", response);
-        showMessage("検知開始に失敗しました: " + (response?.message || "不明なエラー"), "error");
+        showMessage(
+          "検知開始に失敗しました: " + (response?.message || "不明なエラー"),
+          "error"
+        );
         updateConnectionUI(false);
         await chrome.storage.local.set({ isConnected: false });
       }
     } catch (messageError) {
       console.error("❌ Content script communication error:", messageError);
-      
-      showMessage(
-        "⚠️ ページをリロードしてから再度お試しください",
-        "error"
-      );
-      
+
+      showMessage("⚠️ ページをリロードしてから再度お試しください", "error");
+
       updateConnectionUI(false);
       await chrome.storage.local.set({ isConnected: false });
     }
-
   } catch (error) {
     console.error("❌ Start detection error:", error);
     showMessage("エラーが発生しました: " + error.message, "error");
@@ -956,17 +958,30 @@ async function stopDetection() {
 
       isDetecting = false;
       updateDetectionUI(false);
+
+      // QRコードを非表示
+      const qrCodeSection = document.getElementById("qrCodeSection");
+      if (qrCodeSection) {
+        qrCodeSection.style.display = "none";
+      }
+
       showMessage("⏹️ 検知を停止しました", "info");
       console.log("⏹️ Detection stopped");
     } catch (messageError) {
       console.error("❌ Stop detection communication error:", messageError);
-      
+
       // エラーでも状態をリセット
       isDetecting = false;
       updateDetectionUI(false);
+
+      // QRコードを非表示
+      const qrCodeSection = document.getElementById("qrCodeSection");
+      if (qrCodeSection) {
+        qrCodeSection.style.display = "none";
+      }
+
       showMessage("⏹️ 検知を停止しました", "info");
     }
-
   } catch (error) {
     console.error("❌ Stop detection error:", error);
     showMessage("停止に失敗しました", "error");
@@ -1009,9 +1024,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       case "CONNECTION_ESTABLISHED":
         // Pusher接続が確立された
-        chrome.storage.local.set({ 
+        chrome.storage.local.set({
           isConnected: true,
-          lastConnected: new Date().toISOString()
+          lastConnected: new Date().toISOString(),
         });
         updateConnectionUI(true, message.sessionId);
         showMessage("✅ サーバーに接続しました", "success");
@@ -1041,3 +1056,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 console.log("✅ Popup script loaded - 完全版");
+
+// QRコード生成関数を追加（既存のコードの後ろに追加）
+
+// QRコードを生成して表示
+async function generateAndShowQRCode() {
+  try {
+    // ストレージから設定を取得
+    const settings = await chrome.storage.local.get([
+      "sessionId",
+      "dashboardUrl",
+      "anonymousId",
+    ]);
+
+    const sessionId = settings.sessionId;
+    const dashboardUrl = settings.dashboardUrl;
+    const anonymousId = settings.anonymousId;
+
+    if (!sessionId || !dashboardUrl || !anonymousId) {
+      console.log("⚠️ QRコード生成: セッション情報が不足");
+      return;
+    }
+
+    // スマホ用URL生成
+    const smartphoneUrl = `${dashboardUrl}/smartphone?session=${sessionId}&studentId=${anonymousId}`;
+
+    // QRコード生成（Google Chart API使用）
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+      smartphoneUrl
+    )}`;
+
+    console.log("📱 スマホ用URL:", smartphoneUrl);
+    console.log("🔗 QRコードURL:", qrCodeUrl);
+
+    // QRコード表示
+    const qrCodeSection = document.getElementById("qrCodeSection");
+    const qrCodeImage = document.getElementById("qrCodeImage");
+
+    if (qrCodeSection && qrCodeImage) {
+      qrCodeImage.src = qrCodeUrl;
+      qrCodeSection.style.display = "block";
+      showMessage("📱 スマホ用QRコードを生成しました", "success");
+    }
+  } catch (error) {
+    console.error("❌ QRコード生成エラー:", error);
+  }
+}

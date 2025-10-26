@@ -12,7 +12,7 @@
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
-    <title>ClassGuard - スマホ</title>
+    <title>ClassGuard - スマホ自動撮影</title>
     <link rel="manifest" href="manifest.json" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <style>
@@ -61,13 +61,16 @@
         height: 12px;
         border-radius: 50%;
         background: #ccc;
+        animation: pulse 2s infinite;
       }
       .status-dot.connected {
         background: #4caf50;
-        animation: pulse 2s infinite;
       }
       .status-dot.disconnected {
         background: #f44336;
+      }
+      .status-dot.waiting {
+        background: #ffc107;
       }
       @keyframes pulse {
         0%,
@@ -75,22 +78,29 @@
           opacity: 1;
         }
         50% {
-          opacity: 0.7;
+          opacity: 0.5;
         }
       }
       .status-text {
         font-weight: 600;
         font-size: 1.1rem;
       }
-      .status-details {
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
         font-size: 0.9rem;
-        color: #666;
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid #eee;
       }
-      .status-details div {
-        margin: 5px 0;
+      .info-row:last-child {
+        border-bottom: none;
+      }
+      .info-label {
+        color: #666;
+      }
+      .info-value {
+        font-weight: 600;
+        color: #333;
       }
       .camera-container {
         display: none;
@@ -104,10 +114,57 @@
         background: #000;
         display: block;
       }
-      #qr-reader {
+      .capture-flash {
+        position: fixed;
+        top: 0;
+        left: 0;
         width: 100%;
+        height: 100%;
+        background: white;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 9999;
+      }
+      .capture-flash.active {
+        animation: flash 0.3s ease;
+      }
+      @keyframes flash {
+        0% {
+          opacity: 0;
+        }
+        50% {
+          opacity: 0.8;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+      .alert-box {
+        background: #fff3cd;
+        border: 2px solid #ffc107;
         border-radius: 12px;
-        overflow: hidden;
+        padding: 15px;
+        margin-bottom: 15px;
+        display: none;
+      }
+      .alert-box.show {
+        display: block;
+        animation: shake 0.5s ease;
+      }
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-10px); }
+        75% { transform: translateX(10px); }
+      }
+      .alert-box-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+        color: #856404;
+      }
+      .alert-box-text {
+        font-size: 0.9rem;
+        color: #856404;
       }
       .btn {
         display: block;
@@ -120,6 +177,10 @@
         cursor: pointer;
         margin-bottom: 15px;
         color: white;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .btn:active {
+        transform: scale(0.98);
       }
       .btn-primary {
         background: #2196f3;
@@ -128,10 +189,6 @@
         background: #6c757d;
         font-size: 14px;
         padding: 10px 16px;
-      }
-
-      .btn-secondary:hover {
-        background: #5a6268;
       }
       .btn-danger {
         background: #f44336;
@@ -148,12 +205,24 @@
         border-radius: 8px;
         overflow: hidden;
         background: #f0f0f0;
+        cursor: pointer;
       }
       .gallery-item img {
         position: absolute;
         width: 100%;
         height: 100%;
         object-fit: cover;
+      }
+      .gallery-item-time {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        font-size: 10px;
+        padding: 4px;
+        text-align: center;
       }
       .gallery-empty {
         text-align: center;
@@ -181,51 +250,94 @@
       .screen.active {
         display: block;
       }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 15px;
+      }
+      .stat-item {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+      }
+      .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #667eea;
+      }
+      .stat-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 5px;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="header">
         <h1>📱 ClassGuard</h1>
-        <p>授業スライド自動撮影アプリ</p>
+        <p>居眠り自動撮影システム</p>
       </div>
 
+      <!-- メイン画面 -->
       <div id="main-screen" class="screen active">
+        <!-- アラートボックス -->
+        <div id="alert-box" class="alert-box">
+          <div class="alert-box-title">😴 居眠り検知！</div>
+          <div class="alert-box-text">自動撮影を実行しました</div>
+        </div>
+
+        <!-- ステータスカード -->
         <div class="card">
-          <div class="status-card">
-            <div class="status-header">
-              <div class="status-indicator">
-                <span id="status-dot" class="status-dot disconnected"></span>
-                <span id="status-text" class="status-label">未接続</span>
-              </div>
+          <div class="status-indicator">
+            <span id="status-dot" class="status-dot disconnected"></span>
+            <span id="status-text" class="status-text">未接続</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">セッション:</span>
+            <span id="session-id" class="info-value">未設定</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">学生ID:</span>
+            <span id="student-id" class="info-value">未設定</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">撮影回数:</span>
+            <span id="capture-count" class="info-value">0回</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">最終撮影:</span>
+            <span id="last-capture" class="info-value">未撮影</span>
+          </div>
+          <button
+            id="disconnect-btn"
+            class="btn btn-danger"
+            style="margin-top: 15px; display: none"
+          >
+            🔌 接続解除
+          </button>
+        </div>
+
+        <!-- 統計 -->
+        <div class="card" id="stats-card" style="display: none">
+          <h3 style="margin-bottom: 10px">📊 統計</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-value" id="stat-total">0</div>
+              <div class="stat-label">総撮影数</div>
             </div>
-            <div class="info-row">
-              <span class="info-label">匿名ID:</span>
-              <span id="anonymous-id" class="info-value">未設定</span>
+            <div class="stat-item">
+              <div class="stat-value" id="stat-today">0</div>
+              <div class="stat-label">今日の撮影</div>
             </div>
-            <div class="info-row">
-              <span class="info-label">サーバー:</span>
-              <span id="server-url" class="info-value">未設定</span>
-            </div>
-            <div class="info-row">
-              <span>最終撮影:</span>
-              <span id="last-capture">未撮影</span>
-            </div>
-            <button
-              id="clear-pairing-btn"
-              class="btn btn-secondary"
-              style="margin-top: 10px; display: none"
-            >
-              🗑️ 接続情報をクリア
-            </button>
-            <button id="test-connection-btn" class="btn" style="display: none">
-              🔍 接続テスト
-            </button>
           </div>
         </div>
 
+        <!-- カメラプレビュー -->
         <div id="camera-container" class="card camera-container">
-          <h3>📷 カメラ準備完了</h3>
+          <h3>📷 カメラ待機中</h3>
           <video id="camera-preview" autoplay playsinline muted></video>
           <button
             id="manual-capture-btn"
@@ -236,32 +348,16 @@
           </button>
         </div>
 
-        <button id="scan-qr-btn" class="btn btn-primary">
-          🔍 QRコードでペアリング
-        </button>
+        <!-- ボタン -->
         <button id="view-gallery-btn" class="btn btn-secondary">
           🖼️ ギャラリーを見る
         </button>
-        <button
-          id="test-connection-btn"
-          class="btn btn-secondary"
-          style="display: none"
-        >
-          🔄 接続テスト
-        </button>
       </div>
 
-      <div id="qr-scan-screen" class="screen">
-        <div class="card">
-          <h3>QRコードをスキャン</h3>
-          <div id="qr-reader" style="margin: 15px 0"></div>
-          <button id="close-qr-btn" class="btn btn-danger">✕ キャンセル</button>
-        </div>
-      </div>
-
+      <!-- ギャラリー画面 -->
       <div id="gallery-screen" class="screen">
         <div class="card">
-          <h3>撮影履歴</h3>
+          <h3>📸 撮影履歴</h3>
           <button
             id="delete-all-btn"
             class="btn btn-danger"
@@ -284,10 +380,14 @@
       </div>
     </div>
 
+    <!-- 撮影フラッシュエフェクト -->
+    <div id="capture-flash" class="capture-flash"></div>
+
+    <!-- トースト通知 -->
     <div id="toast" class="toast"></div>
 
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- Pusher -->
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

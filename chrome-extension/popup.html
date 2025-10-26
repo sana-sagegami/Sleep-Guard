@@ -1,673 +1,737 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ClassGuard設定</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      width: 480px;
-      padding: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #333;
-    }
-
-    .container {
-      background: white;
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-    }
-
-    /* ヘッダー */
-    .header {
-      text-align: center;
-      margin-bottom: 24px;
-      padding-bottom: 20px;
-      border-bottom: 2px solid #e0e0e0;
-    }
-
-    .header h1 {
-      font-size: 26px;
-      color: #333;
-      margin-bottom: 4px;
-    }
-
-    .header p {
-      font-size: 13px;
-      color: #666;
-    }
-
-    /* メッセージ */
-    .message {
-      display: none;
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      font-size: 13px;
-      font-weight: 500;
-      animation: slideIn 0.3s ease;
-    }
-
-    .message.show {
-      display: block;
-    }
-
-    .message.success {
-      background: #d4edda;
-      color: #155724;
-      border: 1px solid #c3e6cb;
-    }
-
-    .message.error {
-      background: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
-    }
-
-    .message.info {
-      background: #d1ecf1;
-      color: #0c5460;
-      border: 1px solid #bee5eb;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClassGuard設定</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      to {
-        opacity: 1;
+
+      body {
+        width: 480px;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #333;
+      }
+
+      .container {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      /* ヘッダー */
+      .header {
+        text-align: center;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #e0e0e0;
+      }
+
+      .header h1 {
+        font-size: 26px;
+        color: #333;
+        margin-bottom: 4px;
+      }
+
+      .header p {
+        font-size: 13px;
+        color: #666;
+      }
+
+      /* メッセージ */
+      .message {
+        display: none;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-size: 13px;
+        font-weight: 500;
+        animation: slideIn 0.3s ease;
+      }
+
+      .message.show {
+        display: block;
+      }
+
+      .message.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .message.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ステータスパネル */
+      .status-panel {
+        background: #f8f9fa;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .status-row:last-child {
+        border-bottom: none;
+      }
+
+      .status-label {
+        font-size: 14px;
+        color: #666;
+        font-weight: 500;
+      }
+
+      .status-value {
+        font-size: 14px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .indicator.active {
+        background: #28a745;
+        animation: pulse 2s infinite;
+      }
+
+      .indicator.inactive {
+        background: #999;
+      }
+
+      .indicator.detecting {
+        background: #007bff;
+        animation: pulse 1.5s infinite;
+      }
+
+      .indicator.alert {
+        background: #dc3545;
+        animation: pulse 1s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+
+      /* 顔検出状態 */
+      .face-status {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .face-status-icon {
+        font-size: 48px;
+        margin-bottom: 8px;
+      }
+
+      .face-status-text {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .face-status-detail {
+        font-size: 12px;
+        opacity: 0.9;
+      }
+
+      /* タブ */
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #e0e0e0;
+      }
+
+      .tab-button {
+        flex: 1;
+        padding: 12px 8px;
+        background: transparent;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 13px;
+        color: #666;
+        transition: all 0.3s ease;
+      }
+
+      .tab-button:hover {
+        color: #333;
+        background: #f8f9fa;
+      }
+
+      .tab-button.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      /* QRコードエリア */
+      .qr-code-section {
+        background: #f8f9fa;
+        border: 2px solid #28a745;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .qr-code-section h3 {
+        font-size: 16px;
+        color: #333;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .qr-code-container {
+        background: white;
+        padding: 16px;
+        border-radius: 8px;
+        display: inline-block;
+        margin-bottom: 12px;
+      }
+
+      .qr-code-container img {
+        display: block;
+        max-width: 200px;
+        border-radius: 8px;
+      }
+
+      .qr-code-help {
+        font-size: 12px;
+        color: #666;
+        line-height: 1.5;
+      }
+
+      /* フォーム */
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+      }
+
+      .url-input-area {
+        background: #f8f9fa;
+        border: 2px solid #667eea;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 13px;
+        font-family: "Courier New", monospace;
+        resize: vertical;
+        transition: border-color 0.3s ease;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      input:disabled {
+        background: #f8f9fa;
+        color: #999;
+      }
+
+      .help-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 6px;
+        line-height: 1.5;
+      }
+
+      .help-text strong {
+        color: #667eea;
+      }
+
+      /* スライダー */
+      .slider-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      input[type="range"] {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: #e0e0e0;
+        outline: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #667eea;
+        cursor: pointer;
+      }
+
+      .slider-value {
+        font-size: 14px;
+        font-weight: 600;
+        color: #667eea;
+        min-width: 45px;
+        text-align: right;
+      }
+
+      /* ボタン */
+      .button {
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+      }
+
+      .button:active:not(:disabled) {
         transform: translateY(0);
       }
-    }
-
-    /* ステータスパネル */
-    .status-panel {
-      background: #f8f9fa;
-      border: 2px solid #e0e0e0;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 20px;
-    }
-
-    .status-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .status-row:last-child {
-      border-bottom: none;
-    }
-
-    .status-label {
-      font-size: 14px;
-      color: #666;
-      font-weight: 500;
-    }
-
-    .status-value {
-      font-size: 14px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .indicator {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      display: inline-block;
-    }
-
-    .indicator.active {
-      background: #28a745;
-      animation: pulse 2s infinite;
-    }
-
-    .indicator.inactive {
-      background: #999;
-    }
-
-    .indicator.detecting {
-      background: #007bff;
-      animation: pulse 1.5s infinite;
-    }
-
-    .indicator.alert {
-      background: #dc3545;
-      animation: pulse 1s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    /* 顔検出状態 */
-    .face-status {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 16px;
-      border-radius: 12px;
-      margin-bottom: 20px;
-      text-align: center;
-    }
-
-    .face-status-icon {
-      font-size: 48px;
-      margin-bottom: 8px;
-    }
-
-    .face-status-text {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .face-status-detail {
-      font-size: 12px;
-      opacity: 0.9;
-    }
-
-    /* タブ */
-    .tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 20px;
-      border-bottom: 2px solid #e0e0e0;
-    }
-
-    .tab-button {
-      flex: 1;
-      padding: 12px 8px;
-      background: transparent;
-      border: none;
-      border-bottom: 3px solid transparent;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 13px;
-      color: #666;
-      transition: all 0.3s ease;
-    }
-
-    .tab-button:hover {
-      color: #333;
-      background: #f8f9fa;
-    }
-
-    .tab-button.active {
-      color: #667eea;
-      border-bottom-color: #667eea;
-    }
-
-    .tab-content {
-      display: none;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    /* フォーム */
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .form-group label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 8px;
-    }
-
-    .url-input-area {
-      background: #f8f9fa;
-      border: 2px solid #667eea;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
-    }
-
-    textarea {
-      width: 100%;
-      min-height: 80px;
-      padding: 10px;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      font-size: 13px;
-      font-family: 'Courier New', monospace;
-      resize: vertical;
-      transition: border-color 0.3s ease;
-    }
-
-    textarea:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-
-    input[type="text"],
-    select {
-      width: 100%;
-      padding: 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      font-size: 14px;
-      transition: border-color 0.3s ease;
-    }
-
-    input:focus,
-    select:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-
-    input:disabled {
-      background: #f8f9fa;
-      color: #999;
-    }
-
-    .help-text {
-      font-size: 12px;
-      color: #666;
-      margin-top: 6px;
-      line-height: 1.5;
-    }
-
-    .help-text strong {
-      color: #667eea;
-    }
-
-    /* スライダー */
-    .slider-container {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    input[type="range"] {
-      flex: 1;
-      height: 6px;
-      border-radius: 3px;
-      background: #e0e0e0;
-      outline: none;
-    }
-
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #667eea;
-      cursor: pointer;
-    }
-
-    .slider-value {
-      font-size: 14px;
-      font-weight: 600;
-      color: #667eea;
-      min-width: 45px;
-      text-align: right;
-    }
-
-    /* ボタン */
-    .button {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-
-    .button:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-    }
-
-    .button:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    .button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .button-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-    }
-
-    .button-success {
-      background: #28a745;
-      color: white;
-    }
-
-    .button-success:hover:not(:disabled) {
-      background: #218838;
-    }
-
-    .button-danger {
-      background: #dc3545;
-      color: white;
-    }
-
-    .button-danger:hover:not(:disabled) {
-      background: #c82333;
-    }
-
-    .button-secondary {
-      background: #f8f9fa;
-      color: #333;
-      border: 2px solid #e0e0e0;
-    }
-
-    .button-secondary:hover:not(:disabled) {
-      background: #e9ecef;
-    }
-
-    /* インフォボックス */
-    .info-box {
-      background: #f8f9fa;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 12px;
-      color: #333;
-      font-family: 'Courier New', monospace;
-      word-break: break-all;
-    }
-
-    .info-box strong {
-      color: #667eea;
-    }
-
-    /* セッション情報 */
-    .session-info {
-      background: #fff3cd;
-      border: 2px solid #ffc107;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 16px;
-      font-size: 12px;
-      color: #856404;
-    }
-
-    .session-info strong {
-      color: #333;
-    }
-
-    /* アラートモードカード */
-    .alert-mode-cards {
-      display: grid;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    .alert-card {
-      background: #f8f9fa;
-      border: 2px solid #e0e0e0;
-      border-radius: 12px;
-      padding: 16px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-
-    .alert-card:hover {
-      border-color: #667eea;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-    }
-
-    .alert-card.selected {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-color: #667eea;
-      color: white;
-    }
-
-    .alert-card-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 8px;
-    }
-
-    .alert-card-icon {
-      font-size: 24px;
-    }
-
-    .alert-card-title {
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .alert-card-description {
-      font-size: 12px;
-      opacity: 0.8;
-      line-height: 1.4;
-    }
-
-    /* 詳細設定 */
-    details {
-      margin-bottom: 20px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 12px;
-    }
-
-    summary {
-      cursor: pointer;
-      font-weight: 600;
-      color: #667eea;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    summary::-webkit-details-marker {
-      display: none;
-    }
-
-    summary::before {
-      content: '▶';
-      transition: transform 0.3s ease;
-    }
-
-    details[open] summary::before {
-      transform: rotate(90deg);
-    }
-
-    details[open] summary {
-      margin-bottom: 16px;
-    }
-
-    /* フッター */
-    .footer {
-      text-align: center;
-      margin-top: 20px;
-      padding-top: 16px;
-      border-top: 1px solid #e0e0e0;
-      font-size: 11px;
-      color: #999;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <!-- ヘッダー -->
-    <div class="header">
-      <h1>👁️ ClassGuard</h1>
-      <p>顔認識・居眠り検知システム</p>
-    </div>
-
-    <!-- メッセージ -->
-    <div id="message" class="message"></div>
-
-    <!-- ステータスパネル -->
-    <div class="status-panel">
-      <div class="status-row">
-        <span class="status-label">接続状態</span>
-        <span class="status-value">
-          <span class="indicator inactive" id="connectionIndicator"></span>
-          <span id="connectionStatus">未接続</span>
-        </span>
+
+      .button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .button-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+
+      .button-success {
+        background: #28a745;
+        color: white;
+      }
+
+      .button-success:hover:not(:disabled) {
+        background: #218838;
+      }
+
+      .button-danger {
+        background: #dc3545;
+        color: white;
+      }
+
+      .button-danger:hover:not(:disabled) {
+        background: #c82333;
+      }
+
+      .button-secondary {
+        background: #f8f9fa;
+        color: #333;
+        border: 2px solid #e0e0e0;
+      }
+
+      .button-secondary:hover:not(:disabled) {
+        background: #e9ecef;
+      }
+
+      /* インフォボックス */
+      .info-box {
+        background: #f8f9fa;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 12px;
+        color: #333;
+        font-family: "Courier New", monospace;
+        word-break: break-all;
+      }
+
+      .info-box strong {
+        color: #667eea;
+      }
+
+      /* セッション情報 */
+      .session-info {
+        background: #fff3cd;
+        border: 2px solid #ffc107;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        font-size: 12px;
+        color: #856404;
+      }
+
+      .session-info strong {
+        color: #333;
+      }
+
+      /* アラートモードカード */
+      .alert-mode-cards {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .alert-card {
+        background: #f8f9fa;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .alert-card:hover {
+        border-color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+      }
+
+      .alert-card.selected {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-color: #667eea;
+        color: white;
+      }
+
+      .alert-card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+
+      .alert-card-icon {
+        font-size: 24px;
+      }
+
+      .alert-card-title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .alert-card-description {
+        font-size: 12px;
+        opacity: 0.8;
+        line-height: 1.4;
+      }
+
+      /* 詳細設定 */
+      details {
+        margin-bottom: 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px;
+      }
+
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #667eea;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      summary::before {
+        content: "▶";
+        transition: transform 0.3s ease;
+      }
+
+      details[open] summary::before {
+        transform: rotate(90deg);
+      }
+
+      details[open] summary {
+        margin-bottom: 16px;
+      }
+
+      /* フッター */
+      .footer {
+        text-align: center;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #e0e0e0;
+        font-size: 11px;
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- ヘッダー -->
+      <div class="header">
+        <h1>👁️ ClassGuard</h1>
+        <p>顔認識・居眠り検知システム</p>
       </div>
-      <div class="status-row">
-        <span class="status-label">検知状態</span>
-        <span class="status-value">
-          <span class="indicator inactive" id="detectionIndicator"></span>
-          <span id="detectionStatus">停止中</span>
-        </span>
+
+      <!-- メッセージ -->
+      <div id="message" class="message"></div>
+
+      <!-- ステータスパネル -->
+      <div class="status-panel">
+        <div class="status-row">
+          <span class="status-label">接続状態</span>
+          <span class="status-value">
+            <span class="indicator inactive" id="connectionIndicator"></span>
+            <span id="connectionStatus">未接続</span>
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">検知状態</span>
+          <span class="status-value">
+            <span class="indicator inactive" id="detectionIndicator"></span>
+            <span id="detectionStatus">停止中</span>
+          </span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">顔検出</span>
+          <span class="status-value" id="faceDetectionStatus">待機中</span>
+        </div>
       </div>
-      <div class="status-row">
-        <span class="status-label">顔検出</span>
-        <span class="status-value" id="faceDetectionStatus">待機中</span>
+
+      <!-- 顔検出状態 -->
+      <div class="face-status" id="faceStatus" style="display: none">
+        <div class="face-status-icon" id="faceStatusIcon">👤</div>
+        <div class="face-status-text" id="faceStatusText">顔検出中...</div>
+        <div class="face-status-detail" id="faceStatusDetail">
+          カメラを起動しています
+        </div>
       </div>
-    </div>
 
-    <!-- 顔検出状態 -->
-    <div class="face-status" id="faceStatus" style="display:none;">
-      <div class="face-status-icon" id="faceStatusIcon">👤</div>
-      <div class="face-status-text" id="faceStatusText">顔検出中...</div>
-      <div class="face-status-detail" id="faceStatusDetail">カメラを起動しています</div>
-    </div>
+      <!-- セッション情報 -->
+      <div class="session-info" id="sessionInfo" style="display: none">
+        <strong>📡 接続中:</strong><br />
+        <span id="currentSessionId"></span>
+      </div>
 
-    <!-- セッション情報 -->
-    <div class="session-info" id="sessionInfo" style="display:none;">
-      <strong>📡 接続中:</strong><br>
-      <span id="currentSessionId"></span>
-    </div>
+      <!-- スマホ用QRコード（検知開始後に表示） -->
+      <div class="qr-code-section" id="qrCodeSection" style="display: none">
+        <h3>📱 スマホ用QRコード</h3>
+        <div class="qr-code-container">
+          <img id="qrCodeImage" src="" alt="QRコード" />
+        </div>
+        <div class="qr-code-help">
+          📸 スマホでこのQRコードを読み取ると、<br />
+          居眠り検知時に自動撮影されます
+        </div>
+      </div>
 
-    <!-- タブ -->
-    <div class="tabs">
-      <button class="tab-button active" data-tab="connection">🔌 接続設定</button>
-      <button class="tab-button" data-tab="alert">🔔 アラート設定</button>
-    </div>
+      <!-- タブ -->
+      <div class="tabs">
+        <button class="tab-button active" data-tab="connection">
+          🔌 接続設定
+        </button>
+        <button class="tab-button" data-tab="alert">🔔 アラート設定</button>
+      </div>
 
-    <!-- 接続設定タブ -->
-    <div id="connection-tab" class="tab-content active">
-      <div class="form-group">
-        <label>🔗 学生用URL（先生画面から取得）</label>
-        <div class="url-input-area">
-          <textarea
-            id="sessionUrl"
-            placeholder="https://dashboard-inky-iota-87.vercel.app/student?session=session_xxxxx
+      <!-- 接続設定タブ -->
+      <div id="connection-tab" class="tab-content active">
+        <div class="form-group">
+          <label>🔗 学生用URL（先生画面から取得）</label>
+          <div class="url-input-area">
+            <textarea
+              id="sessionUrl"
+              placeholder="https://dashboard-inky-iota-87.vercel.app/student?session=session_xxxxx
 
 先生画面で生成されたURLを貼り付けてください"
-          ></textarea>
-          <button id="extractButton" class="button button-primary" style="margin-top:8px;">
-            📋 URLから自動設定
-          </button>
+            ></textarea>
+            <button
+              id="extractButton"
+              class="button button-primary"
+              style="margin-top: 8px"
+            >
+              📋 URLから自動設定
+            </button>
+          </div>
+          <div class="help-text">
+            <strong>💡 使い方:</strong>
+            先生画面で生成された学生用URLを貼り付けて「URLから自動設定」をクリック
+          </div>
         </div>
-        <div class="help-text">
-          <strong>💡 使い方:</strong>
-          先生画面で生成された学生用URLを貼り付けて「URLから自動設定」をクリック
+
+        <!-- 匿名ID -->
+        <div class="form-group">
+          <label>🆔 匿名ID</label>
+          <div class="info-box">
+            <strong>ID:</strong> <span id="anonymousId">読み込み中...</span>
+          </div>
+          <div class="help-text">自動生成された識別用ID</div>
         </div>
       </div>
 
-      <!-- 匿名ID -->
-      <div class="form-group">
-        <label>🆔 匿名ID</label>
-        <div class="info-box">
-          <strong>ID:</strong> <span id="anonymousId">読み込み中...</span>
+      <!-- アラート設定タブ -->
+      <div id="alert-tab" class="tab-content">
+        <div class="form-group">
+          <label>🔔 アラートモードを選択</label>
+          <div class="alert-mode-cards">
+            <!-- 音声アラート -->
+            <div class="alert-card" data-mode="sound">
+              <div class="alert-card-header">
+                <div class="alert-card-icon">🔊</div>
+                <div class="alert-card-title">音声アラート</div>
+              </div>
+              <div class="alert-card-description">
+                居眠り検知時にアラート音を再生します
+              </div>
+            </div>
+
+            <!-- 壁紙変更 -->
+            <div class="alert-card" data-mode="wallpaper">
+              <div class="alert-card-header">
+                <div class="alert-card-icon">🖼️</div>
+                <div class="alert-card-title">壁紙変更</div>
+              </div>
+              <div class="alert-card-description">
+                居眠り検知時に画面の壁紙を変更します
+              </div>
+            </div>
+
+            <!-- スマホ撮影 -->
+            <div class="alert-card" data-mode="smartphone">
+              <div class="alert-card-header">
+                <div class="alert-card-icon">📱</div>
+                <div class="alert-card-title">スマホ撮影</div>
+              </div>
+              <div class="alert-card-description">
+                居眠り検知時にスマホで自動撮影します
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="help-text">自動生成された識別用ID</div>
+
+        <!-- 音量調整（音声アラート選択時のみ表示） -->
+        <div class="form-group" id="volumeGroup">
+          <label for="volume">🔊 アラート音量</label>
+          <div class="slider-container">
+            <input type="range" id="volume" min="0" max="100" value="70" />
+            <span class="slider-value" id="volumeValue">70</span>
+          </div>
+          <div class="help-text">音声アラートの音量を調整できます</div>
+        </div>
+      </div>
+
+      <!-- ボタン -->
+      <button id="testButton" class="button button-secondary">
+        🔍 接続テスト
+      </button>
+
+      <button id="startButton" class="button button-success">
+        ▶️ 検知開始
+      </button>
+
+      <button id="stopButton" class="button button-danger" disabled>
+        ⏹️ 検知停止
+      </button>
+
+      <!-- フッター -->
+      <div class="footer">
+        ClassGuard v2.0 - Face Detection & Drowsiness Monitoring
       </div>
     </div>
 
-    <!-- アラート設定タブ -->
-    <div id="alert-tab" class="tab-content">
-      <div class="form-group">
-        <label>🔔 アラートモードを選択</label>
-        <div class="alert-mode-cards">
-          <!-- 音声アラート -->
-          <div class="alert-card" data-mode="sound">
-            <div class="alert-card-header">
-              <div class="alert-card-icon">🔊</div>
-              <div class="alert-card-title">音声アラート</div>
-            </div>
-            <div class="alert-card-description">
-              居眠り検知時にアラート音を再生します
-            </div>
-          </div>
-
-          <!-- 壁紙変更 -->
-          <div class="alert-card" data-mode="wallpaper">
-            <div class="alert-card-header">
-              <div class="alert-card-icon">🖼️</div>
-              <div class="alert-card-title">壁紙変更</div>
-            </div>
-            <div class="alert-card-description">
-              居眠り検知時に画面の壁紙を変更します
-            </div>
-          </div>
-
-          <!-- スマホ撮影 -->
-          <div class="alert-card" data-mode="smartphone">
-            <div class="alert-card-header">
-              <div class="alert-card-icon">📱</div>
-              <div class="alert-card-title">スマホ撮影</div>
-            </div>
-            <div class="alert-card-description">
-              居眠り検知時にスマホで自動撮影します
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 音量調整（音声アラート選択時のみ表示） -->
-      <div class="form-group" id="volumeGroup">
-        <label for="volume">🔊 アラート音量</label>
-        <div class="slider-container">
-          <input type="range" id="volume" min="0" max="100" value="70" />
-          <span class="slider-value" id="volumeValue">70</span>
-        </div>
-        <div class="help-text">音声アラートの音量を調整できます</div>
-      </div>
-    </div>
-
-
-    <!-- ボタン -->
-
-    <button id="testButton" class="button button-secondary">
-      🔍 接続テスト
-    </button>
-
-    <button id="startButton" class="button button-success">
-      ▶️ 検知開始
-    </button>
-
-    <button id="stopButton" class="button button-danger" disabled>
-      ⏹️ 検知停止
-    </button>
-
-    <!-- フッター -->
-    <div class="footer">
-      ClassGuard v2.0 - Face Detection & Drowsiness Monitoring
-    </div>
-  </div>
-
-  <script src="popup.js"></script>
-</body>
+    <script src="popup.js"></script>
+  </body>
 </html>

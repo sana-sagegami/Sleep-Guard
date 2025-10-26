@@ -56,16 +56,22 @@
     try {
       console.log("📥 Loading face-api.js models...");
 
-      const modelPath = chrome.runtime.getURL("models");
+      const MODEL_URL = chrome.runtime.getURL("models");
 
-      await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
+      console.log("📂 Model URL:", MODEL_URL);
+
+      // 必要なモデルを順番に読み込み
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      ]);
 
       modelsLoaded = true;
       console.log("✅ Face-API models loaded successfully");
       return true;
     } catch (error) {
       console.error("❌ Failed to load models:", error);
+      console.error("   Error details:", error.message);
       notifyPopup("FACE_LOST");
       return false;
     }
@@ -250,6 +256,29 @@
     );
 
     return down;
+  }
+
+  // ============================================
+  // EAR (Eye Aspect Ratio) 計算
+  // ============================================
+
+  function calculateEAR(eye) {
+    // 縦方向の距離（2箇所）
+    const A = Math.sqrt(
+      Math.pow(eye[1].x - eye[5].x, 2) + Math.pow(eye[1].y - eye[5].y, 2)
+    );
+    const B = Math.sqrt(
+      Math.pow(eye[2].x - eye[4].x, 2) + Math.pow(eye[2].y - eye[4].y, 2)
+    );
+
+    // 横方向の距離
+    const C = Math.sqrt(
+      Math.pow(eye[0].x - eye[3].x, 2) + Math.pow(eye[0].y - eye[3].y, 2)
+    );
+
+    // EAR計算（縦の平均 / 横）
+    const ear = (A + B) / (2.0 * C);
+    return ear;
   }
 
   // ============================================
@@ -483,30 +512,22 @@
       console.log("   Session ID:", settings.sessionId);
       console.log("   Student ID:", settings.anonymousId);
       console.log("   Status:", status);
-      console.log("   Data:", JSON.stringify(data, null, 2));
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+      // Background経由でfetchを実行（CORS/CSP回避）
+      const response = await chrome.runtime.sendMessage({
+        action: "SEND_STATUS",
+        url: url,
+        data: data,
       });
 
-      const responseText = await response.text();
-      console.log("📥 Server response status:", response.status);
-      console.log("📥 Server response:", responseText);
-
-      if (response.ok) {
-        const result = JSON.parse(responseText);
-        console.log("✅ Status sent successfully:", result);
-        console.log("   Total students in session:", result.totalStudents);
-      } else {
-        console.error(
-          "❌ Failed to send status:",
-          response.status,
-          responseText
+      if (response?.success) {
+        console.log("✅ Status sent successfully:", response.data);
+        console.log(
+          "   Total students in session:",
+          response.data?.totalStudents
         );
+      } else {
+        console.error("❌ Failed to send status:", response?.error);
       }
     } catch (error) {
       console.error("❌ Status send error:", error);
@@ -745,45 +766,44 @@
   }
 
   // ============================================
-  // Pusher接続（リアルタイム更新受信用）
+  // Pusher接続（Background経由でCSP回避）
   // ============================================
 
   async function connectToPusher() {
     try {
-      console.log("🔌 Connecting to Pusher...");
+      console.log("🔌 Connecting to Pusher via background...");
 
-      // Pusherスクリプトを動的に読み込み
-      if (!window.Pusher) {
-        await loadScript("https://js.pusher.com/8.2.0/pusher.min.js");
-      }
-
-      // Pusher APIキーはサーバーから取得
+      // Pusher設定を取得
       const response = await fetch(
         `${settings.dashboardUrl}/api/pusher-config`
       );
-      const config = await response.json();
 
-      pusher = new Pusher(config.key, {
+      if (!response.ok) {
+        throw new Error(`Failed to get Pusher config: ${response.status}`);
+      }
+
+      const config = await response.json();
+      console.log("🔑 Pusher config:", {
+        key: config.key,
         cluster: config.cluster,
       });
 
-      // セッション専用チャンネルに接続
-      channel = pusher.subscribe(`session-${settings.sessionId}`);
+      // Background scriptにPusher接続を依頼
+      const result = await chrome.runtime.sendMessage({
+        action: "CONNECT_PUSHER",
+        config: config,
+        sessionId: settings.sessionId,
+      });
 
-      channel.bind("pusher:subscription_succeeded", () => {
-        console.log("✅ Connected to Pusher channel");
+      if (result?.success) {
+        console.log("✅ Connected to Pusher via background");
         notifyPopup("CONNECTION_ESTABLISHED", {
           sessionId: settings.sessionId,
         });
-      });
-
-      // サーバーからのコマンドを受信
-      channel.bind("teacher-command", (data) => {
-        console.log("📨 Received command:", data);
-        handleTeacherCommand(data);
-      });
-
-      return true;
+        return true;
+      } else {
+        throw new Error("Failed to connect via background");
+      }
     } catch (error) {
       console.error("❌ Pusher connection error:", error);
       return false;
@@ -791,16 +811,14 @@
   }
 
   function disconnectFromPusher() {
-    if (channel) {
-      channel.unbind_all();
-      pusher.unsubscribe(`session-${settings.sessionId}`);
-      channel = null;
-    }
-
-    if (pusher) {
-      pusher.disconnect();
-      pusher = null;
-    }
+    // Background scriptにPusher切断を依頼
+    chrome.runtime
+      .sendMessage({
+        action: "DISCONNECT_PUSHER",
+      })
+      .catch((err) => {
+        console.error("❌ Failed to disconnect Pusher:", err);
+      });
 
     console.log("🔌 Disconnected from Pusher");
   }
@@ -815,17 +833,6 @@
         stopDetection();
         break;
     }
-  }
-
-  // スクリプト動的読み込み
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = src;
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
   }
 
   // ============================================
@@ -950,6 +957,13 @@
 
       case "STOP_DETECTION":
         sendResponse(stopDetection());
+        break;
+
+      case "TEACHER_COMMAND":
+        // Background経由で先生からのコマンドを受信
+        console.log("📨 Teacher command received:", message.command);
+        handleTeacherCommand(message.command);
+        sendResponse({ success: true });
         break;
 
       case "CHECK_STATUS":
