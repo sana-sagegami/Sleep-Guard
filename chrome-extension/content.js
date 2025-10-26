@@ -34,10 +34,10 @@
     studentName: "",
     alertMode: "sound",
     volume: 70,
-    eyeClosedThreshold: 3.0,
-    headDownThreshold: 25,
+    eyeClosedThreshold: 3.0, // 3秒間目を閉じ続けたら
+    headDownThreshold: 35, // 35度以上下を向いたら（25→35に変更）
     detectionInterval: 500,
-    statusUpdateInterval: 2000, // 2秒ごとにステータス送信
+    statusUpdateInterval: 5000,
   };
 
   // モデル読み込み状態
@@ -261,38 +261,91 @@
   }
 
   // ============================================
-  // 頭の角度検知（Pitch角度）
+  // 頭の角度検知（修正版）
   // ============================================
 
   function calculateHeadPitch(landmarks) {
-    const noseTip = landmarks[30];
-    const chin = landmarks[8];
-    const foreheadApprox = {
-      x: noseTip.x,
-      y: noseTip.y - 80,
-    };
+    // 鼻先と顎の位置から角度を計算
+    const noseTip = landmarks[30]; // 鼻先
+    const chin = landmarks[8]; // 顎
+    const noseBridge = landmarks[27]; // 鼻梁
 
-    const dy = chin.y - foreheadApprox.y;
-    const dx = chin.x - foreheadApprox.x;
+    // 垂直方向の距離
+    const verticalDistance = chin.y - noseBridge.y;
 
-    const pitch = Math.atan2(dy, Math.abs(dx)) * (180 / Math.PI);
+    // 基準となる顔の高さ（正面を向いている時の値）
+    const faceHeight = Math.abs(landmarks[8].y - landmarks[27].y);
 
-    return Math.abs(pitch);
+    // 角度を計算（より正確に）
+    const angle =
+      Math.atan2(chin.y - noseTip.y, Math.abs(noseTip.x - chin.x)) *
+      (180 / Math.PI);
+
+    return Math.abs(angle);
   }
 
   function isHeadDown(landmarks, threshold) {
     const pitch = calculateHeadPitch(landmarks);
+
+    // より厳格に判定（閾値を超えた場合のみ）
     const down = pitch > threshold;
 
     if (down) {
-      console.log(`🙇 Head down (Pitch: ${pitch.toFixed(1)}°)`);
+      console.log(
+        `🙇 Head down detected (Pitch: ${pitch.toFixed(1)}° > ${threshold}°)`
+      );
+    } else {
+      // デバッグ用
+      if (pitch > 25) {
+        console.debug(`👤 Head angle: ${pitch.toFixed(1)}° (OK)`);
+      }
     }
 
     return down;
   }
 
   // ============================================
-  // 検出ループ
+  // 目の開閉検知
+  // ============================================
+
+  function areEyesClosed(landmarks) {
+    const leftEye = [
+      landmarks[36],
+      landmarks[37],
+      landmarks[38],
+      landmarks[39],
+      landmarks[40],
+      landmarks[41],
+    ];
+
+    const rightEye = [
+      landmarks[42],
+      landmarks[43],
+      landmarks[44],
+      landmarks[45],
+      landmarks[46],
+      landmarks[47],
+    ];
+
+    const leftEAR = calculateEAR(leftEye);
+    const rightEAR = calculateEAR(rightEye);
+    const avgEAR = (leftEAR + rightEAR) / 2.0;
+
+    // 閾値を調整（0.2 → 0.18にして、より厳格に判定）
+    const threshold = 0.18;
+    const closed = avgEAR < threshold;
+
+    if (closed) {
+      console.log(
+        `👁️ Eyes closed detected (EAR: ${avgEAR.toFixed(3)} < ${threshold})`
+      );
+    }
+
+    return closed;
+  }
+
+  // ============================================
+  // 検出ループ（継続時間のチェックを追加）
   // ============================================
 
   async function runDetectionLoop() {
@@ -306,7 +359,7 @@
       faceDetected = true;
       const landmarks = detections.landmarks.positions;
 
-      // 目の開閉チェック
+      // 目の開閉チェック（継続時間を厳格に）
       const currentlyEyesClosed = areEyesClosed(landmarks);
 
       if (currentlyEyesClosed) {
@@ -316,6 +369,7 @@
           notifyPopup("EYES_CLOSED");
         } else {
           const duration = (Date.now() - eyesClosedStartTime) / 1000;
+          // 3秒以上閉じている場合のみ居眠りと判定
           if (duration >= settings.eyeClosedThreshold) {
             handleDrowsiness("eyes_closed", duration);
           }
@@ -328,7 +382,7 @@
         }
       }
 
-      // 頭の角度チェック
+      // 頭の角度チェック（より厳格に）
       const currentlyHeadDown = isHeadDown(
         landmarks,
         settings.headDownThreshold
@@ -341,7 +395,8 @@
           notifyPopup("HEAD_DOWN");
         } else {
           const duration = (Date.now() - headDownStartTime) / 1000;
-          if (duration >= 1.0) {
+          // 2秒以上下を向いている場合のみ居眠りと判定（1秒→2秒に変更）
+          if (duration >= 2.0) {
             handleDrowsiness("head_down", duration);
           }
         }
@@ -380,7 +435,6 @@
       }
     }
   }
-
   // ============================================
   // 検出結果の描画
   // ============================================
@@ -425,7 +479,7 @@
   }
 
   // ============================================
-  // ステータスをサーバーに送信（Pusher経由）
+  // ステータスをサーバーに送信
   // ============================================
 
   async function sendStatusToServer(
@@ -453,7 +507,7 @@
         sessionId: settings.sessionId,
         student: {
           id: settings.anonymousId,
-          name: settings.studentName || "匿名",
+          name: settings.studentName || "匿名学生", // デフォルト名を追加
           status: status,
           eyesClosed: eyesClosed,
           headDown: headDown,
@@ -462,17 +516,19 @@
         },
       };
 
-      console.log("📤 Sending status:", status);
+      console.log("📤 Sending status to server:", data);
 
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(data),
       });
 
       if (response.ok) {
         const result = await response.json();
-        console.log("✅ Status sent successfully");
+        console.log("✅ Status sent successfully:", result);
       } else {
         const errorText = await response.text();
         console.error("❌ Failed to send status:", response.status, errorText);
@@ -483,34 +539,101 @@
   }
 
   // ============================================
-  // 定期的なステータス送信
+  // 定期的なステータス送信（修正版）
   // ============================================
 
   function startStatusUpdates() {
     // 2秒ごとに現在のステータスを送信
-    statusUpdateInterval = setInterval(() => {
+    statusUpdateInterval = setInterval(async () => {
       if (!isDetecting) return;
 
       let status = "active";
+      let duration = 0;
+
+      // ステータスを正確に判定
       if (eyesClosed && headDown) {
         status = "sleeping";
-      } else if (eyesClosed || headDown) {
-        status = "drowsy";
+        duration = eyesClosedStartTime
+          ? (Date.now() - eyesClosedStartTime) / 1000
+          : 0;
+      } else if (eyesClosed) {
+        const eyesDuration = eyesClosedStartTime
+          ? (Date.now() - eyesClosedStartTime) / 1000
+          : 0;
+
+        if (eyesDuration >= settings.eyeClosedThreshold) {
+          status = "drowsy";
+          duration = eyesDuration;
+        }
+      } else if (headDown) {
+        const headDuration = headDownStartTime
+          ? (Date.now() - headDownStartTime) / 1000
+          : 0;
+
+        if (headDuration >= 2.0) {
+          status = "drowsy";
+          duration = headDuration;
+        }
+      } else if (faceDetected) {
+        status = "active";
+      } else {
+        status = "absent"; // 顔が検出されない場合
       }
 
-      const duration = eyesClosedStartTime
-        ? (Date.now() - eyesClosedStartTime) / 1000
-        : 0;
-
-      sendStatusToServer(status, eyesClosed, headDown, duration);
+      await sendStatusToServer(status, eyesClosed, headDown, duration);
     }, settings.statusUpdateInterval);
   }
 
-  function stopStatusUpdates() {
-    if (statusUpdateInterval) {
-      clearInterval(statusUpdateInterval);
-      statusUpdateInterval = null;
+  // ============================================
+  // 検知開始時に初回ステータスを送信
+  // ============================================
+
+  async function startDetection(newSettings) {
+    if (isDetecting) {
+      console.log("⚠️ Detection already running");
+      return { success: false, message: "Already detecting" };
     }
+
+    Object.assign(settings, newSettings);
+
+    console.log("🚀 Starting detection with settings:", settings);
+
+    // モデル読み込み
+    const modelsLoadedSuccess = await loadFaceApiModels();
+    if (!modelsLoadedSuccess) {
+      return { success: false, message: "Failed to load models" };
+    }
+
+    // カメラ起動
+    const cameraStarted = await startCamera();
+    if (!cameraStarted) {
+      return { success: false, message: "Failed to start camera" };
+    }
+
+    // Pusher接続
+    await connectToPusher();
+
+    // 検出ループ開始
+    isDetecting = true;
+    detectionInterval = setInterval(
+      runDetectionLoop,
+      settings.detectionInterval
+    );
+
+    // ステータス更新開始
+    startStatusUpdates();
+
+    // 初期ステータス送信（即座に送信）
+    await sendStatusToServer("active", false, false, 0);
+
+    console.log("✅ Detection started");
+    console.log(
+      "📡 Sending status every",
+      settings.statusUpdateInterval / 1000,
+      "seconds"
+    );
+
+    return { success: true };
   }
 
   // ============================================

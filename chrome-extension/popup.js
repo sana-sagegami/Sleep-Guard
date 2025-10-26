@@ -7,6 +7,7 @@ let socket = null;
 let isDetecting = false;
 let currentTab = null;
 
+
 // DOM要素
 const elements = {
   // メッセージ
@@ -511,6 +512,7 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
 }
 
 
+
 // ============================================
 // 接続状態確認
 // ============================================
@@ -564,7 +566,259 @@ function updateConnectionUI(connected, sessionId = null) {
   }
 }
 // ============================================
-// 検知開始
+// 検知UI更新
+// ============================================
+
+function updateDetectionUI(detecting) {
+  // ボタンの有効/無効
+  if (elements.startButton) {
+    elements.startButton.disabled = detecting;
+  }
+  if (elements.stopButton) {
+    elements.stopButton.disabled = !detecting;
+  }
+
+  // インジケーター
+  if (detecting) {
+    if (elements.detectionIndicator) {
+      elements.detectionIndicator.className = "indicator detecting";
+    }
+    if (elements.detectionStatus) {
+      elements.detectionStatus.textContent = "検知中";
+    }
+    if (elements.faceStatus) {
+      elements.faceStatus.style.display = "block";
+    }
+  } else {
+    if (elements.detectionIndicator) {
+      elements.detectionIndicator.className = "indicator inactive";
+    }
+    if (elements.detectionStatus) {
+      elements.detectionStatus.textContent = "停止中";
+    }
+    if (elements.faceStatus) {
+      elements.faceStatus.style.display = "none";
+    }
+    if (elements.faceDetectionStatus) {
+      elements.faceDetectionStatus.textContent = "待機中";
+    }
+  }
+}
+
+// ============================================
+// 顔検出状態更新
+// ============================================
+
+function updateFaceStatus(status) {
+  if (!elements.faceStatusIcon || !elements.faceStatusText || !elements.faceStatusDetail) {
+    return;
+  }
+
+  switch (status) {
+    case "detecting":
+      elements.faceStatusIcon.textContent = "👤";
+      elements.faceStatusText.textContent = "顔検出中";
+      elements.faceStatusDetail.textContent = "正常に顔を検出しています";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "✅ 顔検出中";
+      }
+      break;
+
+    case "no_face":
+      elements.faceStatusIcon.textContent = "❌";
+      elements.faceStatusText.textContent = "顔が見つかりません";
+      elements.faceStatusDetail.textContent = "カメラの前に顔を向けてください";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "❌ 顔なし";
+      }
+      break;
+
+    case "eyes_closed":
+      elements.faceStatusIcon.textContent = "😪";
+      elements.faceStatusText.textContent = "目を閉じています";
+      elements.faceStatusDetail.textContent = "目を開けてください";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "😪 目を閉じています";
+      }
+      break;
+
+    case "head_down":
+      elements.faceStatusIcon.textContent = "😴";
+      elements.faceStatusText.textContent = "頭が下がっています";
+      elements.faceStatusDetail.textContent = "居眠りの可能性";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "😴 頭が下がっています";
+      }
+      break;
+
+    case "drowsy":
+      elements.faceStatusIcon.textContent = "🚨";
+      elements.faceStatusText.textContent = "居眠り検出！";
+      elements.faceStatusDetail.textContent = "アラートを発信しています";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "🚨 居眠り検出";
+      }
+      break;
+
+    case "focused":
+      elements.faceStatusIcon.textContent = "✅";
+      elements.faceStatusText.textContent = "集中中";
+      elements.faceStatusDetail.textContent = "良好な状態です";
+      if (elements.faceDetectionStatus) {
+        elements.faceDetectionStatus.textContent = "✅ 集中中";
+      }
+      break;
+  }
+}
+
+// ============================================
+// 抽出した設定を保存（自動接続・自動開始）
+// ============================================
+
+async function saveExtractedSettings(dashboardUrl, sessionId) {
+  try {
+    // 既存の設定を取得
+    const existing = await chrome.storage.local.get(["alertMode", "volume"]);
+
+    // 新しい設定をマージ
+    const settings = {
+      dashboardUrl: dashboardUrl,
+      sessionId: sessionId,
+      alertMode: existing.alertMode || "sound",
+      volume: existing.volume || 70,
+      isConnected: false,
+    };
+
+    await chrome.storage.local.set(settings);
+    console.log("💾 Extracted settings saved:", settings);
+
+    // UI更新: セッション情報を表示
+    if (elements.sessionInfo && elements.currentSessionId) {
+      elements.sessionInfo.style.display = "block";
+      elements.currentSessionId.textContent = sessionId;
+    }
+
+    // 自動的に接続テストを実行
+    console.log("🔄 Auto-testing connection...");
+    await testConnection();
+    
+    // 接続成功したら自動的に検知開始
+    const { isConnected } = await chrome.storage.local.get("isConnected");
+    if (isConnected) {
+      console.log("🔄 Auto-starting detection...");
+      // 1秒待ってから検知開始
+      setTimeout(() => {
+        startDetection();
+      }, 1000);
+    }
+    
+  } catch (error) {
+    console.error("❌ Save extracted settings error:", error);
+    throw error;
+  }
+}
+
+// ============================================
+// URLフィールドの値を保持（ポップアップが閉じても保存）
+// ============================================
+
+// URL入力時に自動保存
+if (elements.sessionUrl) {
+  elements.sessionUrl.addEventListener("input", async (e) => {
+    const url = e.target.value;
+    await chrome.storage.local.set({ lastInputUrl: url });
+  });
+}
+
+// ポップアップ起動時に前回の入力値を復元
+async function restoreLastUrl() {
+  try {
+    const { lastInputUrl } = await chrome.storage.local.get("lastInputUrl");
+    if (lastInputUrl && elements.sessionUrl) {
+      elements.sessionUrl.value = lastInputUrl;
+      console.log("📝 Restored last URL:", lastInputUrl);
+    }
+  } catch (error) {
+    console.error("❌ Failed to restore URL:", error);
+  }
+}
+
+// ============================================
+// 初期化（修正版）
+// ============================================
+
+document.addEventListener("DOMContentLoaded", async () => {
+  console.log("🚀 ClassGuard Popup 起動");
+
+  // 設定を読み込み
+  await loadSettings();
+
+  // 匿名IDを生成/読み込み
+  await initAnonymousId();
+
+  // 前回入力したURLを復元
+  await restoreLastUrl();
+
+  // イベントリスナー設定
+  setupEventListeners();
+
+  // 接続状態を確認
+  await checkConnectionStatus();
+
+  // 既に検知中かどうかチェック
+  await checkDetectionStatus();
+
+  console.log("✅ 初期化完了");
+});
+
+// ============================================
+// 検知状態の確認（ポップアップ再起動時）
+// ============================================
+
+async function checkDetectionStatus() {
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    if (!tab?.id) {
+      return;
+    }
+
+    // Content Scriptに現在の状態を問い合わせ
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: "CHECK_STATUS",
+      });
+
+      if (response?.isDetecting) {
+        isDetecting = true;
+        updateDetectionUI(true);
+        console.log("✅ Detection is already running");
+        
+        // 顔の状態も復元
+        if (response.faceDetected) {
+          if (response.eyesClosed) {
+            updateFaceStatus("eyes_closed");
+          } else if (response.headDown) {
+            updateFaceStatus("head_down");
+          } else {
+            updateFaceStatus("detecting");
+          }
+        }
+      }
+    } catch (error) {
+      // Content Scriptがない場合は無視
+      console.debug("⚠️ Content script not available");
+    }
+  } catch (error) {
+    console.error("❌ Failed to check detection status:", error);
+  }
+}
+
+// ============================================
+// 検知開始（カメラ起動時にポップアップを閉じない）
 // ============================================
 
 async function startDetection() {
@@ -604,7 +858,7 @@ async function startDetection() {
 
     console.log("📍 Active tab:", tab.url);
 
-    // Googleページなど、制限されたページでの警告
+    // 制限されたページでの警告
     if (tab.url.startsWith("chrome://") || 
         tab.url.startsWith("chrome-extension://") ||
         tab.url.startsWith("edge://") ||
@@ -619,7 +873,7 @@ async function startDetection() {
     // 検知開始メッセージを表示
     showMessage("🔄 検知を開始しています...", "info");
 
-    // Content Scriptを手動で注入（確実に読み込むため）
+    // Content Scriptを手動で注入
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -633,7 +887,7 @@ async function startDetection() {
       console.warn("⚠️ Manual injection failed (might be already loaded):", injectError.message);
     }
 
-    // content scriptにメッセージを送信（Promiseベース）
+    // content scriptにメッセージを送信
     try {
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: "START_DETECTION",
@@ -645,13 +899,14 @@ async function startDetection() {
         isDetecting = true;
         updateDetectionUI(true);
         
-        // Pusherに接続できたら「接続中」に更新
         await chrome.storage.local.set({ isConnected: true });
         updateConnectionUI(true, settings.sessionId);
         
         showMessage("✅ 検知を開始しました", "success");
         console.log("▶️ Detection started successfully");
         console.log("📡 Pusher channel: session-" + settings.sessionId);
+        
+        // ポップアップは閉じない（ユーザーが手動で閉じるまで開いたまま）
       } else {
         console.error("❌ Detection start failed:", response);
         showMessage("検知開始に失敗しました: " + (response?.message || "不明なエラー"), "error");
@@ -662,7 +917,7 @@ async function startDetection() {
       console.error("❌ Content script communication error:", messageError);
       
       showMessage(
-        "⚠️ ページをリロードしてから再度お試しください。または、通常のWebページ（例: https://example.com）で試してください。",
+        "⚠️ ページをリロードしてから再度お試しください",
         "error"
       );
       
