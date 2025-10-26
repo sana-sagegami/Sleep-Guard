@@ -452,8 +452,32 @@ function addCaptureToHistory(base64Image) {
   status.className = "capture-item-status";
   status.textContent = "✅ 送信完了";
 
+  // ダウンロードボタンを追加
+  const downloadBtn = document.createElement("button");
+  downloadBtn.textContent = "💾 保存";
+  downloadBtn.style.cssText = `
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 8px;
+    width: 100%;
+    font-weight: bold;
+  `;
+  downloadBtn.onclick = () => {
+    const link = document.createElement("a");
+    link.href = base64Image;
+    link.download = `classguard_${Date.now()}.jpg`;
+    link.click();
+    showToast("💾 写真を保存しました");
+  };
+
   info.appendChild(time);
   info.appendChild(status);
+  info.appendChild(downloadBtn);
 
   captureItem.appendChild(img);
   captureItem.appendChild(info);
