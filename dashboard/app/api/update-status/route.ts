@@ -18,10 +18,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { sessionId, student } = body;
 
-    console.log("📥 Received status update:", { sessionId, student });
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("📥 Received status update");
+    console.log("   Session ID:", sessionId);
+    console.log("   Student:", JSON.stringify(student, null, 2));
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // バリデーション
     if (!sessionId) {
+      console.error("❌ Missing sessionId");
       return NextResponse.json(
         { success: false, error: "Session ID is required" },
         { status: 400 }
@@ -29,6 +34,7 @@ export async function POST(request: Request) {
     }
 
     if (!student || !student.id) {
+      console.error("❌ Missing student data");
       return NextResponse.json(
         { success: false, error: "Student data is required" },
         { status: 400 }
@@ -59,18 +65,27 @@ export async function POST(request: Request) {
     console.log(
       `✅ Student ${student.id} (${student.name}) updated: ${student.status}`
     );
-    console.log(`📊 Total students in session: ${students.size}`);
+    console.log(`📊 Total students in session ${sessionId}: ${students.size}`);
+    console.log(`📋 All students:`, Array.from(students.keys()));
 
     // Pusherでリアルタイム送信
     const channelName = `session-${sessionId}`;
     const eventName = "student-update";
 
-    await pusher.trigger(channelName, eventName, {
-      student: studentData,
-      timestamp: Date.now(),
-    });
+    console.log(`📡 Sending Pusher event:`);
+    console.log(`   Channel: ${channelName}`);
+    console.log(`   Event: ${eventName}`);
+    console.log(`   Data:`, JSON.stringify(studentData, null, 2));
 
-    console.log(`📡 Pusher event sent to ${channelName}`);
+    try {
+      await pusher.trigger(channelName, eventName, {
+        student: studentData,
+        timestamp: Date.now(),
+      });
+      console.log(`✅ Pusher event sent successfully`);
+    } catch (pusherError) {
+      console.error(`❌ Pusher error:`, pusherError);
+    }
 
     // 現在の全生徒リストを返す
     const studentList = Array.from(students.values());

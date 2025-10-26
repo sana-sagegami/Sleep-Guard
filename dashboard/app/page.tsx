@@ -90,16 +90,21 @@ export default function TeacherDashboard() {
   const startMonitoring = async (sessionId: string) => {
     try {
       setConnectionStatus("connecting");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.log("🔌 Pusher接続を開始...");
+      console.log("   Session ID:", sessionId);
 
       // Pusher設定を取得
       const configResponse = await fetch("/api/pusher-config");
       const config = await configResponse.json();
 
-      console.log("🔑 Pusher設定を取得:", {
-        key: config.key,
-        cluster: config.cluster,
-      });
+      console.log("🔑 Pusher設定を取得:");
+      console.log("   Key:", config.key);
+      console.log("   Cluster:", config.cluster);
+
+      if (!config.key || config.key === "") {
+        throw new Error("Pusher key is missing in environment variables");
+      }
 
       // Pusherスクリプトを動的に読み込み
       await loadPusherScript();
@@ -116,10 +121,13 @@ export default function TeacherDashboard() {
         enabledTransports: ["ws", "wss"],
       });
 
-      const channel = pusherInstance.subscribe(`session-${sessionId}`);
+      const channelName = `session-${sessionId}`;
+      console.log("📡 Subscribing to channel:", channelName);
+
+      const channel = pusherInstance.subscribe(channelName);
 
       channel.bind("pusher:subscription_succeeded", () => {
-        console.log("✅ Pusherチャンネルに接続成功");
+        console.log("✅ Pusherチャンネルに接続成功:", channelName);
         setConnectionStatus("connected");
       });
 
@@ -129,7 +137,11 @@ export default function TeacherDashboard() {
       });
 
       channel.bind("student-update", (data: any) => {
-        console.log("📥 学生更新を受信:", data.student);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("📥 学生更新を受信:");
+        console.log("   Student:", JSON.stringify(data.student, null, 2));
+        console.log("   Timestamp:", new Date(data.timestamp).toLocaleString());
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         setStudents((prev) => {
           const index = prev.findIndex((s) => s.id === data.student.id);
@@ -141,17 +153,26 @@ export default function TeacherDashboard() {
             console.log(
               `🔄 学生を更新: ${data.student.name} (${data.student.status})`
             );
+            console.log(`📊 現在の生徒数: ${updated.length}`);
             return updated;
           } else {
             // 新しい生徒を追加
             console.log(`➕ 新しい学生を追加: ${data.student.name}`);
-            return [...prev, data.student];
+            const newList = [...prev, data.student];
+            console.log(`📊 現在の生徒数: ${newList.length}`);
+            return newList;
           }
         });
       });
 
+      // すべてのイベントをリッスン（デバッグ用）
+      channel.bind_global((eventName: string, data: any) => {
+        console.log(`📨 Pusher event received: ${eventName}`, data);
+      });
+
       setPusher(pusherInstance);
       console.log("📡 Pusher接続完了");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     } catch (error) {
       console.error("❌ Pusher接続エラー:", error);
       setConnectionStatus("error");

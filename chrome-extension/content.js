@@ -440,7 +440,7 @@
   }
 
   // ============================================
-  // ステータスをサーバーに送信
+  // ステータスをサーバーに送信（デバッグ強化）
   // ============================================
 
   async function sendStatusToServer(
@@ -457,6 +457,7 @@
     // レート制限: 2秒に1回まで
     const now = Date.now();
     if (now - lastStatusSentTime < settings.statusUpdateInterval) {
+      console.debug("⏭️ Skipping status update (rate limit)");
       return;
     }
     lastStatusSentTime = now;
@@ -468,7 +469,7 @@
         sessionId: settings.sessionId,
         student: {
           id: settings.anonymousId,
-          name: settings.studentName || "匿名学生", // デフォルト名を追加
+          name: settings.studentName || "匿名学生",
           status: status,
           eyesClosed: eyesClosed,
           headDown: headDown,
@@ -477,7 +478,12 @@
         },
       };
 
-      console.log("📤 Sending status to server:", data);
+      console.log("📤 Sending status to server:");
+      console.log("   URL:", url);
+      console.log("   Session ID:", settings.sessionId);
+      console.log("   Student ID:", settings.anonymousId);
+      console.log("   Status:", status);
+      console.log("   Data:", JSON.stringify(data, null, 2));
 
       const response = await fetch(url, {
         method: "POST",
@@ -487,12 +493,20 @@
         body: JSON.stringify(data),
       });
 
+      const responseText = await response.text();
+      console.log("📥 Server response status:", response.status);
+      console.log("📥 Server response:", responseText);
+
       if (response.ok) {
-        const result = await response.json();
+        const result = JSON.parse(responseText);
         console.log("✅ Status sent successfully:", result);
+        console.log("   Total students in session:", result.totalStudents);
       } else {
-        const errorText = await response.text();
-        console.error("❌ Failed to send status:", response.status, errorText);
+        console.error(
+          "❌ Failed to send status:",
+          response.status,
+          responseText
+        );
       }
     } catch (error) {
       console.error("❌ Status send error:", error);
