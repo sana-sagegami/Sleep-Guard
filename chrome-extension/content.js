@@ -4,7 +4,7 @@
 // ============================================
 
 (async function () {
-  "use strict";
+  ("use strict");
 
   console.log("🚀 ClassGuard Content Script 起動 (Pusher版)");
 
@@ -717,17 +717,22 @@
   // ============================================
 
   function notifyPopup(action, data = {}) {
-    chrome.runtime.sendMessage(
-      {
-        action: action,
-        ...data,
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          return;
+    const message = {
+      action: action,
+      ...data,
+    };
+
+    chrome.runtime
+      .sendMessage(message)
+      .then((response) => {
+        if (response?.received) {
+          console.log("✅ Popup notified:", action);
         }
-      }
-    );
+      })
+      .catch((error) => {
+        // Popupが開いていない場合はエラーが出るが、無視して良い
+        console.debug("⚠️ Popup not available:", error.message);
+      });
   }
 
   // ============================================

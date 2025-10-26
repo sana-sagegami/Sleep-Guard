@@ -323,98 +323,7 @@ function generateAnonymousId() {
   const random = Math.random().toString(36).substr(2, 9);
   return `student_${timestamp}_${random}`;
 }
-// filepath: [popup.js](http://_vscodecontentref_/1)
 
-// ============================================
-// 検知開始
-// ============================================
-
-async function startDetection() {
-  // 設定を取得
-  const settings = await chrome.storage.local.get([
-    "dashboardUrl",
-    "sessionId",
-    "alertMode",
-    "volume",
-    "anonymousId",
-  ]);
-
-  if (!settings.dashboardUrl || !settings.sessionId) {
-    showMessage("URLを設定してください", "error");
-    switchTab("connection");
-    return;
-  }
-
-  console.log("▶️ Starting detection with settings:", settings);
-
-  try {
-    // アクティブなタブを取得
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-
-    if (!tab?.id) {
-      showMessage("アクティブなタブが見つかりません", "error");
-      return;
-    }
-
-    console.log("📍 Active tab:", tab.url);
-
-    // まず接続状態を「接続中」に更新
-    await chrome.storage.local.set({ isConnected: true });
-    updateConnectionUI(true, settings.sessionId);
-    showMessage("🔄 検知を開始しています...", "info");
-
-    // content scriptにメッセージを送信
-    chrome.tabs.sendMessage(
-      tab.id,
-      {
-        action: "START_DETECTION",
-        settings: settings,
-      },
-      (response) => {
-        // エラーチェック
-        if (chrome.runtime.lastError) {
-          console.error("❌ Content script error:", chrome.runtime.lastError.message);
-          
-          // content scriptが見つからない場合の詳細なエラーメッセージ
-          if (chrome.runtime.lastError.message.includes("Could not establish connection")) {
-            showMessage(
-              "⚠️ ページをリロードしてから再度お試しください。または、カメラ使用が許可されているページで実行してください。",
-              "error"
-            );
-          } else {
-            showMessage("content scriptとの通信に失敗しました", "error");
-          }
-          
-          updateConnectionUI(false);
-          chrome.storage.local.set({ isConnected: false });
-          return;
-        }
-
-        // レスポンスチェック
-        if (response?.success) {
-          isDetecting = true;
-          updateDetectionUI(true);
-          showMessage("✅ 検知を開始しました", "success");
-          console.log("▶️ Detection started successfully");
-          console.log("📡 WebSocket connecting to:", `${settings.dashboardUrl}/ws/${settings.sessionId}`);
-        } else {
-          console.error("❌ Detection start failed:", response);
-          showMessage("検知開始に失敗しました: " + (response?.error || "不明なエラー"), "error");
-          updateConnectionUI(false);
-          chrome.storage.local.set({ isConnected: false });
-        }
-      }
-    );
-  } catch (error) {
-    console.error("❌ Start detection error:", error);
-    showMessage("エラーが発生しました: " + error.message, "error");
-    updateConnectionUI(false);
-    chrome.storage.local.set({ isConnected: false });
-  }
-}
 
 // ============================================
 // 接続テスト
@@ -543,145 +452,6 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
   }
 }
 
-// ============================================
-// 検知停止
-// ============================================
-
-async function stopDetection() {
-  try {
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-
-    if (!tab?.id) {
-      showMessage("アクティブなタブが見つかりません", "error");
-      return;
-    }
-
-    chrome.tabs.sendMessage(
-      tab.id,
-      {
-        action: "STOP_DETECTION",
-      },
-      (response) => {
-        isDetecting = false;
-        updateDetectionUI(false);
-        showMessage("⏹️ 検知を停止しました", "info");
-        console.log("⏹️ Detection stopped");
-      }
-    );
-  } catch (error) {
-    console.error("❌ Stop detection error:", error);
-    showMessage("停止に失敗しました", "error");
-  }
-}
-
-// ============================================
-// 検知UI更新
-// ============================================
-
-function updateDetectionUI(detecting) {
-  // ボタンの有効/無効
-  if (elements.startButton) {
-    elements.startButton.disabled = detecting;
-  }
-  if (elements.stopButton) {
-    elements.stopButton.disabled = !detecting;
-  }
-
-  // インジケーター
-  if (detecting) {
-    if (elements.detectionIndicator) {
-      elements.detectionIndicator.className = "indicator detecting";
-    }
-    if (elements.detectionStatus) {
-      elements.detectionStatus.textContent = "検知中";
-    }
-    if (elements.faceStatus) {
-      elements.faceStatus.style.display = "block";
-    }
-  } else {
-    if (elements.detectionIndicator) {
-      elements.detectionIndicator.className = "indicator inactive";
-    }
-    if (elements.detectionStatus) {
-      elements.detectionStatus.textContent = "停止中";
-    }
-    if (elements.faceStatus) {
-      elements.faceStatus.style.display = "none";
-    }
-    if (elements.faceDetectionStatus) {
-      elements.faceDetectionStatus.textContent = "待機中";
-    }
-  }
-}
-
-// ============================================
-// 顔検出状態更新
-// ============================================
-
-function updateFaceStatus(status) {
-  if (!elements.faceStatusIcon || !elements.faceStatusText || !elements.faceStatusDetail) {
-    return;
-  }
-
-  switch (status) {
-    case "detecting":
-      elements.faceStatusIcon.textContent = "👤";
-      elements.faceStatusText.textContent = "顔検出中";
-      elements.faceStatusDetail.textContent = "正常に顔を検出しています";
-      if (elements.faceDetectionStatus) {
-        elements.faceDetectionStatus.textContent = "✅ 顔検出中";
-      }
-      break;
-
-    case "no_face":
-      elements.faceStatusIcon.textContent = "❌";
-      elements.faceStatusText.textContent = "顔が見つかりません";
-      elements.faceStatusDetail.textContent = "カメラの前に顔を向けてください";
-      if (elements.faceDetectionStatus) {
-        elements.faceDetectionStatus.textContent = "❌ 顔なし";
-      }
-      break;
-
-    case "eyes_closed":
-      elements.faceStatusIcon.textContent = "😪";
-      elements.faceStatusText.textContent = "目を閉じています";
-      elements.faceStatusDetail.textContent = "目を開けてください";
-      if (elements.faceDetectionStatus) {
-        elements.faceDetectionStatus.textContent = "😪 目を閉じています";
-      }
-      break;
-
-    case "head_down":
-      elements.faceStatusIcon.textContent = "😴";
-      elements.faceStatusText.textContent = "頭が下がっています";
-      elements.faceStatusDetail.textContent = "居眠りの可能性";
-      if (elements.faceDetectionStatus) {
-        elements.faceDetectionStatus.textContent = "😴 頭が下がっています";
-      }
-      break;
-
-    case "drowsy":
-      elements.faceStatusIcon.textContent = "🚨";
-      elements.faceStatusText.textContent = "居眠り検出！";
-      elements.faceStatusDetail.textContent = "アラートを発信しています";
-      if (elements.faceDetectionStatus) {
-        elements.faceDetectionStatus.textContent = "🚨 居眠り検出";
-      }
-      break;
-
-    case "focused":
-      elements.faceStatusIcon.textContent = "✅";
-      elements.faceStatusText.textContent = "集中中";
-      elements.faceStatusDetail.textContent = "良好な状態です";
-      if (elements.faceDetectionStatus) {
-        elements.faceDetectionStatus.textContent = "✅ 集中中";
-      }
-      break;
-  }
-}
 
 // ============================================
 // メッセージ表示
@@ -740,169 +510,6 @@ async function saveExtractedSettings(dashboardUrl, sessionId) {
   }
 }
 
-// ============================================
-// 接続テスト
-// ============================================
-
-async function testConnection() {
-  const settings = await chrome.storage.local.get([
-    "dashboardUrl",
-    "sessionId",
-  ]);
-
-  if (!settings.dashboardUrl || !settings.sessionId) {
-    showMessage("URLを設定してください", "error");
-    return;
-  }
-
-  showMessage("🔍 接続テスト中...", "info");
-  console.log("🔍 Testing connection to:", settings.dashboardUrl);
-  console.log("🔑 Session ID:", settings.sessionId);
-
-  try {
-    // HTTPリクエストでサーバーの生存確認
-    const response = await fetch(`${settings.dashboardUrl}/api/health`, {
-      method: "GET",
-      mode: "cors",
-    }).catch(() => null);
-
-    if (response && response.ok) {
-      console.log("✅ Server is reachable");
-      
-      // 接続成功をストレージに保存
-      await chrome.storage.local.set({ 
-        isConnected: true,
-        lastConnected: new Date().toISOString()
-      });
-      
-      updateConnectionUI(true, settings.sessionId);
-      showMessage("✅ サーバーに接続できました", "success");
-    } else {
-      // /health がない場合、トップページで確認
-      const fallbackResponse = await fetch(settings.dashboardUrl, {
-        method: "HEAD",
-        mode: "no-cors",
-      }).catch(() => null);
-
-      if (fallbackResponse) {
-        console.log("✅ Server is reachable (fallback check)");
-        
-        await chrome.storage.local.set({ 
-          isConnected: true,
-          lastConnected: new Date().toISOString()
-        });
-        
-        updateConnectionUI(true, settings.sessionId);
-        showMessage("✅ サーバーに接続できました", "success");
-      } else {
-        throw new Error("サーバーに到達できません");
-      }
-    }
-  } catch (error) {
-    console.error("❌ Connection test failed:", error);
-    updateConnectionUI(false);
-    showMessage("❌ サーバーに接続できません。URLを確認してください", "error");
-  }
-}
-
-// ============================================
-// 検知開始
-// ============================================
-
-async function startDetection() {
-  // 設定を取得
-  const settings = await chrome.storage.local.get([
-    "dashboardUrl",
-    "sessionId",
-    "alertMode",
-    "volume",
-    "anonymousId",
-  ]);
-
-  if (!settings.dashboardUrl || !settings.sessionId) {
-    showMessage("URLを設定してください", "error");
-    switchTab("connection");
-    return;
-  }
-
-  if (!settings.anonymousId) {
-    showMessage("匿名IDが見つかりません", "error");
-    return;
-  }
-
-  console.log("▶️ Starting detection with settings:", settings);
-
-  try {
-    // アクティブなタブを取得
-    const [tab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-
-    if (!tab?.id) {
-      showMessage("アクティブなタブが見つかりません", "error");
-      return;
-    }
-
-    console.log("📍 Active tab:", tab.url);
-
-    // 検知開始メッセージを表示
-    showMessage("🔄 検知を開始しています...", "info");
-
-    // content scriptにメッセージを送信
-    chrome.tabs.sendMessage(
-      tab.id,
-      {
-        action: "START_DETECTION",
-        settings: settings,
-      },
-      async (response) => {
-        // エラーチェック
-        if (chrome.runtime.lastError) {
-          console.error("❌ Content script error:", chrome.runtime.lastError.message);
-          
-          // content scriptが見つからない場合
-          if (chrome.runtime.lastError.message.includes("Could not establish connection")) {
-            showMessage(
-              "⚠️ ページをリロードしてから再度お試しください",
-              "error"
-            );
-          } else {
-            showMessage("content scriptとの通信に失敗しました", "error");
-          }
-          
-          updateConnectionUI(false);
-          await chrome.storage.local.set({ isConnected: false });
-          return;
-        }
-
-        // レスポンスチェック
-        if (response?.success) {
-          isDetecting = true;
-          updateDetectionUI(true);
-          
-          // Pusherに接続できたら「接続中」に更新
-          await chrome.storage.local.set({ isConnected: true });
-          updateConnectionUI(true, settings.sessionId);
-          
-          showMessage("✅ 検知を開始しました", "success");
-          console.log("▶️ Detection started successfully");
-          console.log("📡 Pusher channel: session-" + settings.sessionId);
-        } else {
-          console.error("❌ Detection start failed:", response);
-          showMessage("検知開始に失敗しました: " + (response?.message || "不明なエラー"), "error");
-          updateConnectionUI(false);
-          await chrome.storage.local.set({ isConnected: false });
-        }
-      }
-    );
-  } catch (error) {
-    console.error("❌ Start detection error:", error);
-    showMessage("エラーが発生しました: " + error.message, "error");
-    updateConnectionUI(false);
-    await chrome.storage.local.set({ isConnected: false });
-  }
-}
 
 // ============================================
 // 接続状態確認
@@ -956,6 +563,160 @@ function updateConnectionUI(connected, sessionId = null) {
     }
   }
 }
+// ============================================
+// 検知開始
+// ============================================
+
+async function startDetection() {
+  // 設定を取得
+  const settings = await chrome.storage.local.get([
+    "dashboardUrl",
+    "sessionId",
+    "alertMode",
+    "volume",
+    "anonymousId",
+  ]);
+
+  if (!settings.dashboardUrl || !settings.sessionId) {
+    showMessage("URLを設定してください", "error");
+    switchTab("connection");
+    return;
+  }
+
+  if (!settings.anonymousId) {
+    showMessage("匿名IDが見つかりません", "error");
+    return;
+  }
+
+  console.log("▶️ Starting detection with settings:", settings);
+
+  try {
+    // アクティブなタブを取得
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    if (!tab?.id) {
+      showMessage("アクティブなタブが見つかりません", "error");
+      return;
+    }
+
+    console.log("📍 Active tab:", tab.url);
+
+    // Googleページなど、制限されたページでの警告
+    if (tab.url.startsWith("chrome://") || 
+        tab.url.startsWith("chrome-extension://") ||
+        tab.url.startsWith("edge://") ||
+        tab.url.includes("google.com/search")) {
+      showMessage(
+        "⚠️ このページでは拡張機能が動作しません。通常のWebページで試してください",
+        "error"
+      );
+      return;
+    }
+
+    // 検知開始メッセージを表示
+    showMessage("🔄 検知を開始しています...", "info");
+
+    // Content Scriptを手動で注入（確実に読み込むため）
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["face-api.js", "content.js"]
+      });
+      console.log("✅ Content script injected manually");
+      
+      // 少し待ってからメッセージ送信
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (injectError) {
+      console.warn("⚠️ Manual injection failed (might be already loaded):", injectError.message);
+    }
+
+    // content scriptにメッセージを送信（Promiseベース）
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: "START_DETECTION",
+        settings: settings,
+      });
+
+      // レスポンスチェック
+      if (response?.success) {
+        isDetecting = true;
+        updateDetectionUI(true);
+        
+        // Pusherに接続できたら「接続中」に更新
+        await chrome.storage.local.set({ isConnected: true });
+        updateConnectionUI(true, settings.sessionId);
+        
+        showMessage("✅ 検知を開始しました", "success");
+        console.log("▶️ Detection started successfully");
+        console.log("📡 Pusher channel: session-" + settings.sessionId);
+      } else {
+        console.error("❌ Detection start failed:", response);
+        showMessage("検知開始に失敗しました: " + (response?.message || "不明なエラー"), "error");
+        updateConnectionUI(false);
+        await chrome.storage.local.set({ isConnected: false });
+      }
+    } catch (messageError) {
+      console.error("❌ Content script communication error:", messageError);
+      
+      showMessage(
+        "⚠️ ページをリロードしてから再度お試しください。または、通常のWebページ（例: https://example.com）で試してください。",
+        "error"
+      );
+      
+      updateConnectionUI(false);
+      await chrome.storage.local.set({ isConnected: false });
+    }
+
+  } catch (error) {
+    console.error("❌ Start detection error:", error);
+    showMessage("エラーが発生しました: " + error.message, "error");
+    updateConnectionUI(false);
+    await chrome.storage.local.set({ isConnected: false });
+  }
+}
+
+// ============================================
+// 検知停止
+// ============================================
+
+async function stopDetection() {
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    if (!tab?.id) {
+      showMessage("アクティブなタブが見つかりません", "error");
+      return;
+    }
+
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        action: "STOP_DETECTION",
+      });
+
+      isDetecting = false;
+      updateDetectionUI(false);
+      showMessage("⏹️ 検知を停止しました", "info");
+      console.log("⏹️ Detection stopped");
+    } catch (messageError) {
+      console.error("❌ Stop detection communication error:", messageError);
+      
+      // エラーでも状態をリセット
+      isDetecting = false;
+      updateDetectionUI(false);
+      showMessage("⏹️ 検知を停止しました", "info");
+    }
+
+  } catch (error) {
+    console.error("❌ Stop detection error:", error);
+    showMessage("停止に失敗しました", "error");
+  }
+}
 
 // ============================================
 // メッセージリスナー（content scriptからの通知）
@@ -964,53 +725,64 @@ function updateConnectionUI(connected, sessionId = null) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("📨 Message received:", message);
 
-  switch (message.action) {
-    case "FACE_DETECTED":
-      updateFaceStatus("detecting");
-      break;
+  try {
+    switch (message.action) {
+      case "FACE_DETECTED":
+        updateFaceStatus("detecting");
+        break;
 
-    case "FACE_LOST":
-      updateFaceStatus("no_face");
-      break;
+      case "FACE_LOST":
+        updateFaceStatus("no_face");
+        break;
 
-    case "EYES_CLOSED":
-      updateFaceStatus("eyes_closed");
-      break;
+      case "EYES_CLOSED":
+        updateFaceStatus("eyes_closed");
+        break;
 
-    case "HEAD_DOWN":
-      updateFaceStatus("head_down");
-      break;
+      case "HEAD_DOWN":
+        updateFaceStatus("head_down");
+        break;
 
-    case "DROWSINESS_DETECTED":
-      updateFaceStatus("drowsy");
-      showMessage("🚨 居眠りを検出しました!", "error");
-      break;
+      case "DROWSINESS_DETECTED":
+        updateFaceStatus("drowsy");
+        showMessage("🚨 居眠りを検出しました!", "error");
+        break;
 
-    case "FOCUSED":
-      updateFaceStatus("focused");
-      break;
+      case "FOCUSED":
+        updateFaceStatus("focused");
+        break;
 
-    case "CONNECTION_ESTABLISHED":
-      // WebSocket接続が確立された
-      chrome.storage.local.set({ 
-        isConnected: true,
-        lastConnected: new Date().toISOString()
-      });
-      updateConnectionUI(true, message.sessionId);
-      showMessage("✅ サーバーに接続しました", "success");
-      console.log("✅ WebSocket connection established");
-      break;
+      case "CONNECTION_ESTABLISHED":
+        // Pusher接続が確立された
+        chrome.storage.local.set({ 
+          isConnected: true,
+          lastConnected: new Date().toISOString()
+        });
+        updateConnectionUI(true, message.sessionId);
+        showMessage("✅ サーバーに接続しました", "success");
+        console.log("✅ Pusher connection established");
+        break;
 
-    case "CONNECTION_LOST":
-      // WebSocket接続が切れた
-      chrome.storage.local.set({ isConnected: false });
-      updateConnectionUI(false);
-      updateDetectionUI(false);
-      showMessage("❌ 接続が切れました", "error");
-      console.log("❌ WebSocket connection lost");
-      break;
+      case "CONNECTION_LOST":
+        // Pusher接続が切れた
+        chrome.storage.local.set({ isConnected: false });
+        updateConnectionUI(false);
+        updateDetectionUI(false);
+        showMessage("❌ 接続が切れました", "error");
+        console.log("❌ Pusher connection lost");
+        break;
+
+      default:
+        console.warn("⚠️ Unknown message action:", message.action);
+    }
+
+    sendResponse({ received: true });
+  } catch (error) {
+    console.error("❌ Message handler error:", error);
+    sendResponse({ received: false, error: error.message });
   }
 
-  sendResponse({ received: true });
-  return true;
+  return true; // 非同期レスポンスを有効にする
 });
+
+console.log("✅ Popup script loaded - 完全版");
