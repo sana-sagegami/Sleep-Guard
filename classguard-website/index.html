@@ -209,13 +209,19 @@
       }
 
       .github-link {
+        display: inline-block;
+        margin-top: 15px;
         color: #667eea;
         text-decoration: none;
         font-size: 0.9rem;
+        padding: 8px 16px;
+        background: white;
+        border-radius: 20px;
+        transition: background 0.3s;
       }
 
       .github-link:hover {
-        text-decoration: underline;
+        background: #f0f0f0;
       }
 
       @media (max-width: 768px) {
@@ -320,21 +326,22 @@
         </ol>
 
         <div style="text-align: center; margin-top: 30px">
+          <!-- ✅ 正しいGitHub ReleasesのダウンロードURL -->
           <a
-            href="https://github.com/sana-sagegami/Sleep-Guard/releases/latest"
+            href="https://github.com/sana-sagegami/Sleep-Guard/releases/download/v1.0.0/classguard.zip"
             class="download-btn"
-            target="_blank"
-            rel="noopener noreferrer"
+            download="classguard.zip"
           >
             📥 ClassGuard をダウンロード
           </a>
         </div>
         
         <div style="text-align: center; margin-top: 15px">
-          <p style="color: #666; font-size: 0.9rem">
-            クリックするとGitHub Releasesページが開きます<br>
-            <strong>classguard.zip</strong> をダウンロードしてください
-          </p>
+          <a href="https://github.com/sana-sagegami/Sleep-Guard/releases" 
+             class="github-link"
+             target="_blank">
+            または GitHub Releases から直接ダウンロード →
+          </a>
         </div>
       </div>
 
