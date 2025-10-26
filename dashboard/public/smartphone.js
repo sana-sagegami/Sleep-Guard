@@ -243,10 +243,19 @@ async function connectToSession(sid, stid) {
 
     // 撮影トリガーを受信
     channel.bind("trigger-capture", async (data) => {
-      console.log("📸 撮影トリガー受信:", data);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📸 撮影トリガー受信!");
+      console.log("   Data:", data);
+      console.log("   Expected studentId:", studentId);
+      console.log("   Received studentId:", data.studentId);
+      console.log("   Match:", data.studentId === studentId);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
       if (data.studentId === studentId) {
+        console.log("✅ Student ID一致 - 撮影開始");
         await capturePhoto();
+      } else {
+        console.log("⚠️ Student ID不一致 - 撮影スキップ");
       }
     });
   } catch (error) {
@@ -259,7 +268,6 @@ async function connectToSession(sid, stid) {
 // ============================================
 // カメラ起動
 // ============================================
-
 
 async function startCamera() {
   try {
@@ -287,14 +295,24 @@ async function startCamera() {
   }
 }
 
-
 // ============================================
 // 写真撮影
 // ============================================
 
 async function capturePhoto() {
   try {
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("📸 写真を撮影中...");
+    console.log("   Camera stream:", cameraStream);
+    console.log("   Video element:", elements.cameraVideo);
+    console.log("   Video ready:", elements.cameraVideo.readyState);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    if (!cameraStream) {
+      console.error("❌ カメラが起動していません");
+      showToast("❌ カメラが起動していません");
+      return;
+    }
 
     // フラッシュエフェクト
     elements.captureFlash.classList.add("active");
@@ -311,10 +329,14 @@ async function capturePhoto() {
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    console.log("📐 Canvas size:", canvas.width, "x", canvas.height);
+
     // 画像をBlobに変換
     const blob = await new Promise((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.95)
     );
+
+    console.log("📦 Blob size:", blob.size, "bytes");
 
     // Base64に変換
     const reader = new FileReader();
@@ -322,7 +344,7 @@ async function capturePhoto() {
     reader.onloadend = async () => {
       const base64Image = reader.result;
 
-      console.log("✅ 撮影完了");
+      console.log("✅ 撮影完了 - Base64 length:", base64Image.length);
 
       // 撮影回数を更新
       captureCount++;

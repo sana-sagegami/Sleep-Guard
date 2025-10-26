@@ -511,10 +511,7 @@
     // サーバーに送信
     await sendStatusToServer("sleeping", true, true, duration);
 
-    // スマホに直接撮影トリガーを送信
-    await triggerSmartphoneCapture();
-
-    // アラート実行
+    // アラート実行（アラートモードに応じた処理）
     await executeAlert();
   }
 
@@ -525,6 +522,8 @@
   async function triggerSmartphoneCapture() {
     try {
       console.log("📸 スマホに撮影トリガーを送信中...");
+      console.log("📋 Session ID:", settings.sessionId);
+      console.log("👤 Student ID:", settings.anonymousId);
 
       // Background script経由でPusherイベントを送信
       const response = await chrome.runtime.sendMessage({
@@ -532,6 +531,8 @@
         sessionId: settings.sessionId,
         studentId: settings.anonymousId,
       });
+
+      console.log("📡 Response from background:", response);
 
       if (response?.success) {
         console.log("✅ スマホに撮影トリガーを送信しました");
@@ -762,17 +763,35 @@
   // ============================================
 
   async function executeAlert() {
-    switch (settings.alertMode) {
+    // アラートモードを最新の設定から取得
+    const currentSettings = await chrome.storage.local.get(["alertMode"]);
+    const alertMode = currentSettings.alertMode || "sound";
+
+    // settingsオブジェクトも更新
+    settings.alertMode = alertMode;
+
+    console.log(`🔔 Executing alert mode: ${alertMode}`);
+
+    switch (alertMode) {
       case "sound":
+        console.log("🔊 Playing sound alert");
         await playSoundAlert();
         break;
 
       case "wallpaper":
+        console.log("🖼️ Changing wallpaper");
         await changeWallpaper();
         break;
 
       case "smartphone":
+        console.log("📱 Triggering smartphone capture");
         await triggerSmartphoneCapture();
+        break;
+
+      default:
+        console.warn("⚠️ Unknown alert mode:", alertMode);
+        // デフォルトは音声アラート
+        await playSoundAlert();
         break;
     }
   }
