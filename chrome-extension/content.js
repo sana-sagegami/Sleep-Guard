@@ -869,31 +869,6 @@
     }
   }
 
-  // スマホ撮影トリガー
-  async function triggerSmartphoneCapture() {
-    try {
-      const url = `${settings.dashboardUrl}/api/trigger-capture`;
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: settings.sessionId,
-          studentId: settings.anonymousId,
-          timestamp: Date.now(),
-        }),
-      });
-
-      if (response.ok) {
-        console.log("📱 Smartphone capture triggered");
-      } else {
-        console.error("❌ Failed to trigger capture");
-      }
-    } catch (error) {
-      console.error("❌ Trigger capture error:", error);
-    }
-  }
-
   // ============================================
   // Pusher接続（Background経由でCSP回避）
   // ============================================

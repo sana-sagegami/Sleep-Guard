@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ClassGuard - 居眠り検知システム",
-  "version": "2.0",
+  "version": "2.2",
   "description": "顔認識で居眠りを検知し、リアルタイムで先生に通知します",
   "permissions": ["storage", "activeTab", "tabs", "scripting"],
   "host_permissions": [

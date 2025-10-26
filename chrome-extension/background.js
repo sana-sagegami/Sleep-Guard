@@ -504,20 +504,23 @@ function disconnectPusher() {
 
 async function triggerSmartphoneCapture(sessionId, studentId) {
   try {
-    if (!channel || !channel.subscribed) {
-      console.error("❌ Pusher未接続");
-      return false;
-    }
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("📸 スマホに撮影トリガー送信開始");
+    console.log("   Session ID:", sessionId);
+    console.log("   Student ID:", studentId);
+    console.log("   Channel:", channel);
+    console.log("   Channel subscribed:", channel?.subscribed);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    console.log("📸 スマホに撮影トリガー送信:", { sessionId, studentId });
-
-    // Pusherでスマホに直接通知（サーバー経由なし）
-    // 注意: client-events機能が有効な場合のみ動作
-    // client-eventsが無効な場合は、サーバー経由で送信する必要があります
-
-    // サーバー経由で送信（推奨）
+    // サーバー経由で送信（Pusher接続チェック不要）
     const dashboardUrl =
       settings?.dashboardUrl || "https://dashboard-inky-iota-87.vercel.app";
+
+    console.log(
+      "📡 Sending to:",
+      `${dashboardUrl}/api/trigger-smartphone-capture`
+    );
+
     const response = await fetch(
       `${dashboardUrl}/api/trigger-smartphone-capture`,
       {
@@ -531,11 +534,15 @@ async function triggerSmartphoneCapture(sessionId, studentId) {
       }
     );
 
+    console.log("📡 Response status:", response.status);
+
     if (response.ok) {
-      console.log("✅ 撮影トリガーを送信しました");
+      const data = await response.json();
+      console.log("✅ 撮影トリガーを送信しました:", data);
       return true;
     } else {
-      console.error("❌ 撮影トリガー送信失敗:", response.status);
+      const errorText = await response.text();
+      console.error("❌ 撮影トリガー送信失敗:", response.status, errorText);
       return false;
     }
   } catch (error) {

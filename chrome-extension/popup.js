@@ -1001,6 +1001,16 @@ async function stopDetection() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("📨 Message received:", message);
 
+  // Background scriptへのメッセージは無視
+  if (
+    message.action === "TRIGGER_SMARTPHONE" ||
+    message.action === "CONNECT_PUSHER" ||
+    message.action === "DISCONNECT_PUSHER" ||
+    message.action === "SEND_STATUS"
+  ) {
+    return false; // このリスナーでは処理しない
+  }
+
   try {
     switch (message.action) {
       case "FACE_DETECTED":
