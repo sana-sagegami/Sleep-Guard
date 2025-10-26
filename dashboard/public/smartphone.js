@@ -33,6 +33,7 @@ const elements = {
   cameraVideo: document.getElementById("cameraVideo"),
   cameraCanvas: document.getElementById("cameraCanvas"),
   captureIndicator: document.getElementById("captureIndicator"),
+  testCaptureButton: document.getElementById("testCaptureButton"),
   disconnectButton: document.getElementById("disconnectButton"),
   captureHistory: document.getElementById("captureHistory"),
   captureList: document.getElementById("captureList"),
@@ -70,6 +71,12 @@ function setupEventListeners() {
 
   // 手動接続
   elements.connectManualButton.addEventListener("click", connectManually);
+
+  // テスト撮影
+  elements.testCaptureButton.addEventListener("click", () => {
+    console.log("🧪 テスト撮影ボタンクリック");
+    capturePhoto();
+  });
 
   // 切断
   elements.disconnectButton.addEventListener("click", disconnect);
@@ -210,10 +217,16 @@ async function connectToSession(sid, stid) {
     });
 
     const channelName = `session-${sessionId}`;
+    console.log("📡 Subscribing to channel:", channelName);
     channel = pusher.subscribe(channelName);
 
     channel.bind("pusher:subscription_succeeded", () => {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.log("✅ Pusher接続成功");
+      console.log("   Channel:", channelName);
+      console.log("   Session ID:", sessionId);
+      console.log("   Student ID:", studentId);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       updateStatus("connected", "🟢 接続済み");
       showToast("✅ 接続しました");
 
@@ -286,6 +299,7 @@ async function startCamera() {
     elements.cameraVideo.srcObject = cameraStream;
     elements.cameraPreview.classList.add("show");
     elements.captureIndicator.classList.add("show");
+    elements.testCaptureButton.style.display = "block"; // テスト撮影ボタンを表示
 
     console.log("✅ カメラ起動完了");
     showToast("📷 カメラ起動完了");
@@ -506,6 +520,7 @@ function disconnect() {
   elements.toggleManualButton.style.display = "block";
   elements.sessionInfo.classList.remove("show");
   elements.cameraPreview.classList.remove("show");
+  elements.testCaptureButton.style.display = "none"; // テスト撮影ボタンを非表示
   elements.disconnectButton.style.display = "none";
   elements.captureHistory.classList.remove("show");
   elements.captureList.innerHTML = "";
