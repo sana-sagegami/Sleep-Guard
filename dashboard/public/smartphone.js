@@ -46,7 +46,7 @@ const elements = {
 // ============================================
 
 window.addEventListener("DOMContentLoaded", async () => {
-  console.log("🚀 ClassGuard Smartphone App Started");
+  console.log("🚀 SleepGuard Smartphone App Started");
 
   // 保存されたセッション情報を復元
   await restoreSession();
@@ -470,7 +470,7 @@ function addCaptureToHistory(base64Image) {
   downloadBtn.onclick = () => {
     const link = document.createElement("a");
     link.href = base64Image;
-    link.download = `classguard_${Date.now()}.jpg`;
+    link.download = `SleepGuard_${Date.now()}.jpg`;
     link.click();
     showToast("💾 写真を保存しました");
   };

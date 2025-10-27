@@ -318,7 +318,7 @@ export default function StudentPage() {
       <div className="student-page">
         <div className="join-form">
           <div className="logo">👨‍🎓</div>
-          <h1>ClassGuard</h1>
+          <h1>SleepGuard</h1>
           <p className="subtitle">授業に参加</p>
 
           {!faceApiLoaded && (

@@ -1,5 +1,5 @@
 // ============================================
-// ClassGuard Popup Script - 完全版
+// SleepGuard Popup Script - 完全版
 // 顔認識・居眠り検知システム
 // ============================================
 
@@ -55,7 +55,7 @@ const elements = {
 // ============================================
 
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log("🚀 ClassGuard Popup 起動");
+  console.log("🚀 SleepGuard Popup 起動");
 
   // 設定を読み込み
   await loadSettings();
@@ -750,7 +750,7 @@ async function restoreLastUrl() {
 // ============================================
 
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log("🚀 ClassGuard Popup 起動");
+  console.log("🚀 SleepGuard Popup 起動");
 
   // 設定を読み込み
   await loadSettings();

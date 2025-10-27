@@ -3,7 +3,7 @@
 // Pusher版（Vercelダッシュボード連携）
 // ============================================
 
-console.log("🔧 ClassGuard Background Script 開始 (Pusher版)");
+console.log("🔧 SleepGuard Background Script 開始 (Pusher版)");
 
 // ⚠️ 重要: あなたのVercelダッシュボードURLに変更してください
 const DASHBOARD_URL = "https://dashboard-inky-iota-87.vercel.app";

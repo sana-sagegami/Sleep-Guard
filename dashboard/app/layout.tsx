@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "ClassGuard - リアルタイム居眠り検知",
+  title: "SleepGuard - リアルタイム居眠り検知",
   description: "生徒の居眠りをリアルタイムで監視",
 };
 

@@ -1,6 +1,6 @@
 {
-  "name": "ClassGuard",
-  "short_name": "ClassGuard",
+  "name": "SleepGuard",
+  "short_name": "SleepGuard",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -8,7 +8,7 @@ export async function GET() {
     // システムステータスをチェック
     const healthData = {
       status: "ok",
-      service: "ClassGuard API",
+      service: "SleepGuard API",
       version: "2.0.0",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
@@ -29,7 +29,7 @@ export async function GET() {
     return NextResponse.json(
       {
         status: "error",
-        service: "ClassGuard API",
+        service: "SleepGuard API",
         error: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       },

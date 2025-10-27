@@ -1,12 +1,12 @@
 // ============================================
-// ClassGuard Content Script - Pusher版
+// SleepGuard Content Script - Pusher版
 // 顔認識・居眠り検知システム
 // ============================================
 
 (async function () {
   ("use strict");
 
-  console.log("🚀 ClassGuard Content Script 起動 (Pusher版)");
+  console.log("🚀 SleepGuard Content Script 起動 (Pusher版)");
 
   // ============================================
   // グローバル変数
@@ -91,7 +91,7 @@
 
     // ビデオ要素を作成
     videoElement = document.createElement("video");
-    videoElement.id = "classguard-video";
+    videoElement.id = "SleepGuard-video";
     videoElement.autoplay = true;
     videoElement.muted = true;
     videoElement.playsInline = true;
@@ -112,7 +112,7 @@
 
     // Canvas要素を作成（オーバーレイ表示用）
     canvasElement = document.createElement("canvas");
-    canvasElement.id = "classguard-canvas";
+    canvasElement.id = "SleepGuard-canvas";
     canvasElement.style.cssText = `
       position: fixed;
       bottom: 20px;
@@ -835,7 +835,7 @@
   async function changeWallpaper() {
     try {
       const overlay = document.createElement("div");
-      overlay.id = "classguard-wallpaper-overlay";
+      overlay.id = "SleepGuard-wallpaper-overlay";
       overlay.style.cssText = `
         position: fixed;
         top: 0;
@@ -1109,5 +1109,5 @@
     return true;
   });
 
-  console.log("✅ ClassGuard Content Script loaded - Pusher版");
+  console.log("✅ SleepGuard Content Script loaded - Pusher版");
 })();

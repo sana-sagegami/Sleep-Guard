@@ -45,7 +45,7 @@ const elements = {
 // ============================================
 
 window.addEventListener("DOMContentLoaded", async () => {
-  console.log("🚀 ClassGuard Smartphone App Started");
+  console.log("🚀 SleepGuard Smartphone App Started");
 
   // 保存されたセッション情報を復元
   await restoreSession();

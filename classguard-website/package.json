@@ -1,12 +1,16 @@
 {
-  "name": "classguard-website",
+  "name": "SleepGuard-website",
   "version": "1.0.0",
-  "description": "ClassGuard - AI-powered sleep detection system for online classes",
+  "description": "SleepGuard - AI-powered sleep detection system for online classes",
   "scripts": {
     "dev": "python3 -m http.server 3000",
     "build": "echo 'No build step required'"
   },
-  "keywords": ["chrome-extension", "face-detection", "education"],
-  "author": "ClassGuard Team",
+  "keywords": [
+    "chrome-extension",
+    "face-detection",
+    "education"
+  ],
+  "author": "SleepGuard Team",
   "license": "MIT"
 }

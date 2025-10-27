@@ -1,5 +1,5 @@
 // ============================================
-// ClassGuard サーバー
+// SleepGuard サーバー
 // WebSocketでリアルタイム通信を行う
 // ============================================
 
@@ -110,7 +110,7 @@ app.get("/", (req, res) => {
   res.send(`
         <html>
         <head>
-            <title>ClassGuard Server</title>
+            <title>SleepGuard Server</title>
             <style>
                 body { font-family: sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
                 h1 { color: #2196F3; }
@@ -120,7 +120,7 @@ app.get("/", (req, res) => {
             </style>
         </head>
         <body>
-            <h1>📊 ClassGuard Server</h1>
+            <h1>📊 SleepGuard Server</h1>
             <div class="status">
                 <p>✅ サーバーは正常に動作しています</p>
                 <p>ポート: ${PORT}</p>
@@ -514,7 +514,7 @@ setInterval(() => {
 server.listen(PORT, () => {
   console.log("");
   console.log("================================================");
-  console.log("  ClassGuard Server");
+  console.log("  SleepGuard Server");
   console.log("================================================");
   console.log(`  ✓ サーバー起動: http://localhost:${PORT}`);
   console.log(`  ✓ 教員ダッシュボード: http://localhost:${PORT}/teacher.html`);

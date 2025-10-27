@@ -1,7 +1,7 @@
 {
-  "name": "classguard-server",
+  "name": "SleepGuard-server",
   "version": "1.0.0",
-  "description": "ClassGuard - オンライン授業居眠り検知システムのサーバー",
+  "description": "SleepGuard - オンライン授業居眠り検知システムのサーバー",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
