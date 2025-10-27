@@ -187,6 +187,20 @@
         opacity: 0.9;
       }
 
+      /* 主要ボタンエリア */
+      .main-buttons {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+
+      .main-buttons .button {
+        flex: 1;
+        font-size: 15px;
+        font-weight: 700;
+        padding: 14px;
+      }
+
       /* タブ */
       .tabs {
         display: flex;
@@ -619,6 +633,17 @@
         </div>
       </div>
 
+      <!-- 主要ボタン（タブの上に配置） -->
+      <div class="main-buttons">
+        <button id="testButton" class="button button-secondary">
+          🔍 接続テスト
+        </button>
+
+        <button id="toggleDetectionButton" class="button button-success">
+          ▶️ 検知開始
+        </button>
+      </div>
+
       <!-- タブ -->
       <div class="tabs">
         <button class="tab-button active" data-tab="connection">
@@ -713,22 +738,9 @@
         </div>
       </div>
 
-      <!-- ボタン -->
-      <button id="testButton" class="button button-secondary">
-        🔍 接続テスト
-      </button>
-
-      <button id="startButton" class="button button-success">
-        ▶️ 検知開始
-      </button>
-
-      <button id="stopButton" class="button button-danger" disabled>
-        ⏹️ 検知停止
-      </button>
-
       <!-- フッター -->
       <div class="footer">
-        ClassGuard v2.0 - Face Detection & Drowsiness Monitoring
+        ClassGuard v2.3 - Face Detection & Drowsiness Monitoring
       </div>
     </div>
 

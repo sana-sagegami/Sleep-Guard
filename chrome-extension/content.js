@@ -562,8 +562,13 @@
     headDown,
     sleepDuration = 0
   ) {
-    if (!settings.dashboardUrl || !settings.sessionId) {
-      console.error("❌ Missing configuration");
+    // サーバー接続がない場合はスキップ（オフラインモード）
+    if (
+      !settings.dashboardUrl ||
+      !settings.sessionId ||
+      settings.sessionId.startsWith("offline_")
+    ) {
+      console.debug("📴 Offline mode - Skipping status update");
       return;
     }
 
@@ -874,6 +879,16 @@
   // ============================================
 
   async function connectToPusher() {
+    // オフラインモードの場合はPusher接続をスキップ
+    if (
+      !settings.dashboardUrl ||
+      !settings.sessionId ||
+      settings.sessionId.startsWith("offline_")
+    ) {
+      console.log("📴 Offline mode - Skipping Pusher connection");
+      return true; // 成功として扱う
+    }
+
     try {
       console.log("🔌 Connecting to Pusher via background...");
 

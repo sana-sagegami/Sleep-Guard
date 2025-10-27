@@ -47,8 +47,7 @@ const elements = {
 
   // ボタン
   testButton: document.getElementById("testButton"),
-  startButton: document.getElementById("startButton"),
-  stopButton: document.getElementById("stopButton"),
+  toggleDetectionButton: document.getElementById("toggleDetectionButton"),
 };
 
 // ============================================
@@ -102,8 +101,7 @@ function setupEventListeners() {
 
   // ボタン
   elements.testButton.addEventListener("click", testConnection);
-  elements.startButton.addEventListener("click", startDetection);
-  elements.stopButton.addEventListener("click", stopDetection);
+  elements.toggleDetectionButton.addEventListener("click", toggleDetection);
 
   console.log("✅ Event listeners setup complete");
 }
@@ -568,12 +566,15 @@ function updateConnectionUI(connected, sessionId = null) {
 // ============================================
 
 function updateDetectionUI(detecting) {
-  // ボタンの有効/無効
-  if (elements.startButton) {
-    elements.startButton.disabled = detecting;
-  }
-  if (elements.stopButton) {
-    elements.stopButton.disabled = !detecting;
+  // トグルボタンの状態を更新
+  if (elements.toggleDetectionButton) {
+    if (detecting) {
+      elements.toggleDetectionButton.textContent = "⏹️ 検知停止";
+      elements.toggleDetectionButton.className = "button button-danger";
+    } else {
+      elements.toggleDetectionButton.textContent = "▶️ 検知開始";
+      elements.toggleDetectionButton.className = "button button-success";
+    }
   }
 
   // インジケーター
@@ -819,6 +820,18 @@ async function checkDetectionStatus() {
 }
 
 // ============================================
+// 検知開始/停止トグル
+// ============================================
+
+async function toggleDetection() {
+  if (isDetecting) {
+    await stopDetection();
+  } else {
+    await startDetection();
+  }
+}
+
+// ============================================
 // 検知開始（カメラ起動時にポップアップを閉じない）
 // ============================================
 
@@ -832,15 +845,28 @@ async function startDetection() {
     "anonymousId",
   ]);
 
-  if (!settings.dashboardUrl || !settings.sessionId) {
-    showMessage("URLを設定してください", "error");
-    switchTab("connection");
-    return;
+  // 匿名IDがない場合は生成
+  if (!settings.anonymousId) {
+    settings.anonymousId = `student_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 15)}`;
+    await chrome.storage.local.set({ anonymousId: settings.anonymousId });
+    console.log("🆔 Generated anonymous ID:", settings.anonymousId);
   }
 
-  if (!settings.anonymousId) {
-    showMessage("匿名IDが見つかりません", "error");
-    return;
+  // セッションIDがない場合は生成（オフラインモード）
+  if (!settings.sessionId) {
+    settings.sessionId = `offline_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 15)}`;
+    await chrome.storage.local.set({ sessionId: settings.sessionId });
+    console.log("📴 Offline mode - Generated session ID:", settings.sessionId);
+  }
+
+  // ダッシュボードURLがない場合はデフォルト値を設定
+  if (!settings.dashboardUrl) {
+    settings.dashboardUrl = "https://dashboard-inky-iota-87.vercel.app";
+    console.log("🌐 Using default dashboard URL");
   }
 
   console.log("▶️ Starting detection with settings:", settings);
@@ -908,12 +934,19 @@ async function startDetection() {
         await chrome.storage.local.set({ isConnected: true });
         updateConnectionUI(true, settings.sessionId);
 
-        // QRコードを生成して表示
-        await generateAndShowQRCode();
+        // オンラインモードの場合のみQRコードを生成
+        if (!settings.sessionId.startsWith("offline_")) {
+          await generateAndShowQRCode();
+          console.log("📡 Pusher channel: session-" + settings.sessionId);
+        } else {
+          console.log("📴 Offline mode - QR code generation skipped");
+        }
 
-        showMessage("✅ 検知を開始しました", "success");
+        const mode = settings.sessionId.startsWith("offline_")
+          ? "オフライン"
+          : "オンライン";
+        showMessage(`✅ 検知を開始しました (${mode}モード)`, "success");
         console.log("▶️ Detection started successfully");
-        console.log("📡 Pusher channel: session-" + settings.sessionId);
 
         // ポップアップは閉じない（ユーザーが手動で閉じるまで開いたまま）
       } else {
