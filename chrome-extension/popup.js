@@ -934,19 +934,17 @@ async function startDetection() {
         await chrome.storage.local.set({ isConnected: true });
         updateConnectionUI(true, settings.sessionId);
 
-        // オンラインモードの場合のみQRコードを生成
-        if (!settings.sessionId.startsWith("offline_")) {
-          await generateAndShowQRCode();
-          console.log("📡 Pusher channel: session-" + settings.sessionId);
-        } else {
-          console.log("📴 Offline mode - QR code generation skipped");
-        }
+        // QRコードを生成して表示（オンライン・オフライン共通）
+        await generateAndShowQRCode();
 
         const mode = settings.sessionId.startsWith("offline_")
           ? "オフライン"
           : "オンライン";
         showMessage(`✅ 検知を開始しました (${mode}モード)`, "success");
         console.log("▶️ Detection started successfully");
+        if (!settings.sessionId.startsWith("offline_")) {
+          console.log("📡 Pusher channel: session-" + settings.sessionId);
+        }
 
         // ポップアップは閉じない（ユーザーが手動で閉じるまで開いたまま）
       } else {
@@ -1119,16 +1117,17 @@ async function generateAndShowQRCode() {
     ]);
 
     const sessionId = settings.sessionId;
-    const dashboardUrl = settings.dashboardUrl;
+    const dashboardUrl =
+      settings.dashboardUrl || "https://dashboard-inky-iota-87.vercel.app";
     const anonymousId = settings.anonymousId;
 
-    if (!sessionId || !dashboardUrl || !anonymousId) {
+    if (!sessionId || !anonymousId) {
       console.log("⚠️ QRコード生成: セッション情報が不足");
       return;
     }
 
     // スマホ用URL生成
-    const smartphoneUrl = `${dashboardUrl}/smartphone?session=${sessionId}&studentId=${anonymousId}`;
+    const smartphoneUrl = `${dashboardUrl}/smartphone.html?session=${sessionId}&studentId=${anonymousId}`;
 
     // QRコード生成（Google Chart API使用）
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
