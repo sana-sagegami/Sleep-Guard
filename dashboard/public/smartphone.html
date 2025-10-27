@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
-    <meta name="theme-color" content="#2196F3" />
+    <meta name="theme-color" content="#fbbf24" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
@@ -29,7 +29,7 @@
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
         min-height: 100vh;
         display: flex;
         align-items: center;
@@ -44,7 +44,8 @@
         padding: 30px;
         max-width: 500px;
         width: 100%;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 20px 60px rgba(120, 53, 15, 0.15);
+        border: 2px solid #fef3c7;
       }
 
       .header {
@@ -55,12 +56,12 @@
       .header h1 {
         font-size: 32px;
         margin-bottom: 10px;
-        color: #667eea;
+        color: #78350f;
       }
 
       .header p {
         font-size: 16px;
-        color: #666;
+        color: #92400e;
       }
 
       /* ステータスバッジ */
@@ -71,26 +72,42 @@
         font-size: 14px;
         font-weight: bold;
         margin-bottom: 20px;
+        border: 2px solid;
       }
 
       .status-badge.disconnected {
-        background: #f8d7da;
-        color: #721c24;
+        background: #fffbeb;
+        color: #78350f;
+        border-color: #fef3c7;
       }
 
       .status-badge.connecting {
-        background: #fff3cd;
-        color: #856404;
+        background: #fffbeb;
+        color: #78350f;
+        border-color: #fbbf24;
+        animation: pulse 2s infinite;
       }
 
       .status-badge.connected {
         background: #d4edda;
         color: #155724;
+        border-color: #28a745;
       }
 
       .status-badge.ready {
-        background: #d1ecf1;
-        color: #0c5460;
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        color: #78350f;
+        border-color: #f59e0b;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
       }
 
       /* QRコードスキャナーエリア */
@@ -101,13 +118,13 @@
       .scanner-section h2 {
         font-size: 18px;
         margin-bottom: 15px;
-        color: #333;
+        color: #78350f;
       }
 
       #qr-reader {
         border-radius: 12px;
         overflow: hidden;
-        border: 3px solid #667eea;
+        border: 3px solid #fbbf24;
         margin-bottom: 15px;
         display: none;
       }
@@ -138,18 +155,25 @@
       }
 
       .button-primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        color: #78350f;
+        border: 2px solid #f59e0b;
+      }
+
+      .button-primary:hover {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
       }
 
       .button-success {
         background: #28a745;
         color: white;
+        border: 2px solid #218838;
       }
 
       .button-danger {
         background: #dc3545;
         color: white;
+        border: 2px solid #c82333;
       }
 
       .button:disabled {
@@ -159,8 +183,8 @@
 
       /* セッション情報 */
       .session-info {
-        background: #f8f9fa;
-        border: 2px solid #e0e0e0;
+        background: #fffbeb;
+        border: 2px solid #fbbf24;
         border-radius: 12px;
         padding: 16px;
         margin-bottom: 20px;
@@ -175,7 +199,7 @@
         display: flex;
         justify-content: space-between;
         padding: 8px 0;
-        border-bottom: 1px solid #e0e0e0;
+        border-bottom: 1px solid #fef3c7;
       }
 
       .session-info-row:last-child {
@@ -184,11 +208,11 @@
 
       .session-info-label {
         font-weight: bold;
-        color: #666;
+        color: #78350f;
       }
 
       .session-info-value {
-        color: #333;
+        color: #92400e;
         font-family: monospace;
         font-size: 12px;
       }
@@ -235,16 +259,6 @@
         display: block;
       }
 
-      @keyframes pulse {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.6;
-        }
-      }
-
       /* 撮影フラッシュエフェクト */
       .capture-flash {
         position: fixed;
@@ -278,8 +292,8 @@
         bottom: 20px;
         left: 50%;
         transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.85);
-        color: white;
+        background: rgba(120, 53, 15, 0.95);
+        color: #fef3c7;
         padding: 16px 24px;
         border-radius: 12px;
         font-size: 14px;
@@ -287,6 +301,7 @@
         z-index: 1000;
         max-width: 90%;
         text-align: center;
+        border: 2px solid #fbbf24;
       }
 
       .toast.show {
@@ -318,15 +333,22 @@
       .manual-input input {
         width: 100%;
         padding: 12px;
-        border: 2px solid #e0e0e0;
+        border: 2px solid #fef3c7;
         border-radius: 8px;
         font-size: 14px;
         margin-bottom: 10px;
+        background: #fffbeb;
+        color: #78350f;
       }
 
       .manual-input input:focus {
         outline: none;
-        border-color: #667eea;
+        border-color: #fbbf24;
+      }
+
+      .manual-input input::placeholder {
+        color: #92400e;
+        opacity: 0.6;
       }
 
       /* 撮影履歴 */
@@ -342,17 +364,18 @@
       .capture-history h3 {
         font-size: 16px;
         margin-bottom: 12px;
-        color: #333;
+        color: #78350f;
       }
 
       .capture-item {
-        background: #f8f9fa;
+        background: #fffbeb;
         border-radius: 8px;
         padding: 12px;
         margin-bottom: 10px;
         display: flex;
         gap: 12px;
         align-items: center;
+        border: 2px solid #fef3c7;
       }
 
       .capture-item img {
@@ -360,6 +383,7 @@
         height: 60px;
         border-radius: 6px;
         object-fit: cover;
+        border: 2px solid #fbbf24;
       }
 
       .capture-item-info {
@@ -368,13 +392,53 @@
 
       .capture-item-time {
         font-size: 12px;
-        color: #666;
+        color: #92400e;
       }
 
       .capture-item-status {
         font-size: 14px;
         font-weight: bold;
         color: #28a745;
+      }
+
+      /* デバッグパネル */
+      #debugPanel {
+        position: fixed;
+        bottom: 80px;
+        left: 10px;
+        right: 10px;
+        max-height: 200px;
+        overflow-y: auto;
+        background: rgba(120, 53, 15, 0.95);
+        color: #fef3c7;
+        font-family: monospace;
+        font-size: 10px;
+        padding: 10px;
+        border-radius: 8px;
+        z-index: 10000;
+        display: none;
+        border: 2px solid #fbbf24;
+      }
+
+      #toggleDebugButton {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        color: #78350f;
+        border: 3px solid #f59e0b;
+        font-size: 24px;
+        z-index: 10001;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+        transition: all 0.3s ease;
+      }
+
+      #toggleDebugButton:active {
+        transform: scale(0.95);
       }
     </style>
   </head>
@@ -411,7 +475,9 @@
 
       <!-- 手動入力 -->
       <div class="manual-input" id="manualInput">
-        <h2 style="font-size: 16px; margin-bottom: 12px">✏️ 手動入力</h2>
+        <h2 style="font-size: 16px; margin-bottom: 12px; color: #78350f">
+          ✏️ 手動入力
+        </h2>
         <input
           type="text"
           id="sessionIdInput"
@@ -430,7 +496,7 @@
       <button
         id="toggleManualButton"
         class="button"
-        style="background: #6c757d; color: white"
+        style="background: #fffbeb; color: #78350f; border: 2px solid #fef3c7"
       >
         ✏️ 手動入力に切り替え
       </button>
@@ -491,59 +557,13 @@
     <!-- トースト通知 -->
     <div id="toast" class="toast"></div>
 
-    <!-- Pusherライブラリ -->
-    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-
-    <script src="/smartphone.js"></script>
-
-    <!-- </body>の直前に追加 -->
-
     <!-- デバッグパネル -->
-    <div
-      id="debugPanel"
-      style="
-        position: fixed;
-        bottom: 80px;
-        left: 10px;
-        right: 10px;
-        max-height: 200px;
-        overflow-y: auto;
-        background: rgba(0, 0, 0, 0.9);
-        color: #0f0;
-        font-family: monospace;
-        font-size: 10px;
-        padding: 10px;
-        border-radius: 8px;
-        z-index: 10000;
-        display: none;
-      "
-    >
+    <div id="debugPanel">
       <div id="debugLog"></div>
     </div>
 
     <!-- デバッグ切り替えボタン -->
-    <button
-      id="toggleDebugButton"
-      style="
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: rgba(0, 0, 0, 0.7);
-        color: white;
-        border: none;
-        font-size: 24px;
-        z-index: 10001;
-        cursor: pointer;
-      "
-    >
-      🐛
-    </button>
-
-    <div id="captureFlash" class="capture-flash"></div>
-    <div id="toast" class="toast"></div>
+    <!-- <button id="toggleDebugButton">🐛</button> -->
 
     <!-- Pusherライブラリ -->
     <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
@@ -579,7 +599,7 @@
       function addDebugLog(type, message) {
         const logEntry = document.createElement("div");
         logEntry.style.marginBottom = "5px";
-        logEntry.style.color = type === "ERROR" ? "#f00" : "#0f0";
+        logEntry.style.color = type === "ERROR" ? "#dc3545" : "#fef3c7";
         logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${type}: ${message}`;
         debugLog.appendChild(logEntry);
 
