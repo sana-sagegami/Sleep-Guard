@@ -252,17 +252,63 @@
       }
 
       .url-box {
-        background: #87c0e3;
-        padding: 15px;
+        background: #e6f4f9;
+        padding: 12px 15px;
+        max-width: 700px;
         border-radius: 6px;
-        text-align: center;
-        margin: 20px 0;
+        text-align: left;
+        margin: 0 auto;
+        margin-bottom: 20px;
         font-family: monospace;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         word-break: break-all;
-        color: #78350f;
-        border: 2px solid #5ba3cc;
+        color: #1e3a5f;
+        border: 2px solid #87c0e3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+      }
+
+      .url-box:hover {
+        border-color: #5ba3cc;
+        background: #d9eff7;
+      }
+
+      .url-text {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .copy-btn {
+        background: #87c0e3;
+        color: #1e3a5f;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1.2rem;
         font-weight: bold;
+        transition: all 0.2s;
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-width: 50px;
+        text-align: center;
+      }
+
+      .copy-btn:hover {
+        background: #5ba3cc;
+        transform: scale(1.05);
+      }
+
+      .copy-btn:active {
+        transform: scale(0.95);
+      }
+
+      .copy-btn.copied {
+        background: #28a745;
+        color: white;
       }
 
       /* フッター */
@@ -437,7 +483,10 @@
         </div>
 
         <div class="url-box">
-          https://dashboard-inky-iota-87.vercel.app/smartphone.html
+          <span class="url-text" id="smartphoneUrl"
+            >https://dashboard-inky-iota-87.vercel.app/smartphone.html</span
+          >
+          <button class="copy-btn" onclick="copySmartphoneUrl()">📋</button>
         </div>
 
         <div style="text-align: center">
@@ -527,8 +576,32 @@
 
       <footer>
         <p>&copy; 2025 SleepGuard. All rights reserved.</p>
-
       </footer>
     </div>
+    <script>
+      function copySmartphoneUrl() {
+        const url = document.getElementById("smartphoneUrl").textContent;
+        const btn = event.target;
+
+        navigator.clipboard
+          .writeText(url)
+          .then(() => {
+            // ボタンの表示を変更
+            const originalText = btn.textContent;
+            btn.textContent = "✅";
+            btn.classList.add("copied");
+
+            // 2秒後に元に戻す
+            setTimeout(() => {
+              btn.textContent = originalText;
+              btn.classList.remove("copied");
+            }, 2000);
+          })
+          .catch((err) => {
+            console.error("コピーに失敗しました:", err);
+            alert("コピーに失敗しました。手動でコピーしてください。");
+          });
+      }
+    </script>
   </body>
 </html>
