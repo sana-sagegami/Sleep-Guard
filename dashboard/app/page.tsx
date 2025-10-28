@@ -249,7 +249,7 @@ export default function TeacherDashboard() {
       <div style={styles.wrapper}>
         {/* ヘッダー */}
         <div style={styles.header}>
-          <h1 style={styles.title}>👁️ SleepGuard</h1>
+          <h1 style={styles.title}>SleepGuard</h1>
           <p style={styles.subtitle}>授業中の居眠り監視システム</p>
 
           {/* 接続ステータス表示 */}
