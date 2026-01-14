@@ -359,7 +359,6 @@ export default function TeacherDashboard() {
                           </span>
                           <span style={styles.studentStatus}>
                             {student.status === "active" && "✅"}
-                            {student.status === "drowsy" && "😪"}
                             {student.status === "sleeping" && "😴"}
                             {student.status === "absent" && "❌"}
                           </span>
@@ -396,13 +395,7 @@ export default function TeacherDashboard() {
                     <div style={styles.statValue}>
                       {students.filter((s) => s.status === "active").length}
                     </div>
-                    <div style={styles.statLabel}>集中中</div>
-                  </div>
-                  <div style={styles.statItem}>
-                    <div style={styles.statValue}>
-                      {students.filter((s) => s.status === "drowsy").length}
-                    </div>
-                    <div style={styles.statLabel}>眠そう</div>
+                    <div style={styles.statLabel}>集中</div>
                   </div>
                   <div style={styles.statItem}>
                     <div style={styles.statValue}>

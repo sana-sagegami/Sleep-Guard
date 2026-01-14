@@ -251,27 +251,24 @@
         font-size: 0.85rem;
       }
 
-      .url-box {
+      .url-qrcode {
         background: #e6f4f9;
         padding: 12px 15px;
-        max-width: 700px;
+        max-width: fit-content;
         border-radius: 6px;
-        text-align: left;
         margin: 0 auto;
         margin-bottom: 20px;
         font-family: monospace;
-        font-size: 0.9rem;
         word-break: break-all;
         color: #1e3a5f;
         border: 2px solid #87c0e3;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
         transition: all 0.2s;
       }
 
-      .url-box:hover {
+      .url-qrcode:hover {
         border-color: #5ba3cc;
         background: #d9eff7;
       }
@@ -482,11 +479,10 @@
           </ol>
         </div>
 
-        <div class="url-box">
-          <span class="url-text" id="smartphoneUrl"
-            >https://dashboard-inky-iota-87.vercel.app/smartphone.html</span
-          >
-          <button class="copy-btn" onclick="copySmartphoneUrl()">📋</button>
+        <div class="url-qrcode">
+          <span class="url-text" id="smartphoneUrl">
+            <img src="/public/QR.png" alt="QRcode" />
+            </span>
         </div>
 
         <div style="text-align: center">
@@ -507,8 +503,7 @@
             text-align: center;
           "
         >
-          💡 ヒント:
-          このページをホーム画面に追加すると、アプリのように使えます！
+          💡このページをホーム画面に追加すると、アプリのように使えます！
         </p>
       </div>
 
