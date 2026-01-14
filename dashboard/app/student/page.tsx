@@ -375,12 +375,10 @@ export default function StudentPage() {
         <div className={`status-overlay status-${status}`}>
           <div className="status-icon">
             {status === "active" && "✅"}
-            {status === "drowsy" && "😪"}
             {status === "sleeping" && "😴"}
           </div>
           <div className="status-text">
-            {status === "active" && "集中中"}
-            {status === "drowsy" && "眠そう"}
+            {status === "active" && "集中"}
             {status === "sleeping" && "居眠り検知"}
           </div>
         </div>
